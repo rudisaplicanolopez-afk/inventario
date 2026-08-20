@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Inventario Alimentadores GMSB</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📦</text></svg>">
+<style>
+  :root{
+    --bg:#0f1720; --panel:#18232f; --panel2:#1f2d3d; --line:#2b3d50;
+    --txt:#e8eef4; --muted:#8ea3b6; --brand:#00b894; --brand2:#0aa;
+    --accent:#f5a623; --danger:#e74c3c; --ok:#27ae60; --blue:#2d9cdb;
+    --radius:14px;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    background:var(--bg); color:var(--txt); font-size:16px; padding-bottom:80px;
+  }
+  header{
+    position:sticky; top:0; z-index:30; background:linear-gradient(135deg,#0b5,#088 60%,#066);
+    color:#fff; padding:14px 16px; box-shadow:0 2px 10px rgba(0,0,0,.4);
+  }
+  header .row{display:flex;align-items:center;gap:10px}
+  header h1{font-size:18px;margin:0;font-weight:800;letter-spacing:.3px;line-height:1.1}
+  header .sub{font-size:11px;opacity:.85;margin-top:2px;font-weight:500}
+  .dot{width:11px;height:11px;border-radius:50%;background:#f5a623;flex:0 0 auto;box-shadow:0 0 0 3px rgba(255,255,255,.15)}
+  .dot.on{background:#2ecc71} .dot.off{background:#e74c3c}
+  .wrap{max-width:820px;margin:0 auto;padding:14px}
+
+  /* Tabs */
+  .tabs{position:fixed;bottom:0;left:0;right:0;z-index:40;display:flex;background:var(--panel);
+        border-top:1px solid var(--line);box-shadow:0 -4px 14px rgba(0,0,0,.35)}
+  .tabs button{flex:1;background:none;border:none;color:var(--muted);padding:10px 4px 8px;
+        font-size:11px;font-weight:700;display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer}
+  .tabs button .ic{font-size:21px}
+  .tabs button.active{color:var(--brand)}
+  .view{display:none} .view.active{display:block}
+
+  /* Stat chips */
+  .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px}
+  .stat{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:12px 8px;text-align:center}
+  .stat b{display:block;font-size:24px;color:var(--brand);line-height:1}
+  .stat span{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:700}
+
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:14px;margin-bottom:12px}
+  .card h2{font-size:14px;margin:0 0 10px;color:var(--muted);text-transform:uppercase;letter-spacing:.6px}
+
+  input,select,textarea,button{font-family:inherit;font-size:16px}
+  .fld{width:100%;background:var(--panel2);border:1px solid var(--line);color:var(--txt);
+       padding:12px;border-radius:10px;margin-bottom:10px;outline:none}
+  .fld:focus{border-color:var(--brand)}
+  label{display:block;font-size:12px;color:var(--muted);font-weight:700;margin:2px 0 4px;text-transform:uppercase;letter-spacing:.4px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+
+  .btn{background:var(--brand);color:#052;border:none;padding:13px 16px;border-radius:10px;
+       font-weight:800;cursor:pointer;width:100%;letter-spacing:.3px}
+  .btn:active{transform:translateY(1px)}
+  .btn.sec{background:var(--panel2);color:var(--txt);border:1px solid var(--line)}
+  .btn.blue{background:var(--blue);color:#04263b}
+  .btn.warn{background:var(--accent);color:#3a2600}
+  .btn.sm{width:auto;padding:8px 12px;font-size:13px;border-radius:9px}
+  .btn.danger{background:var(--danger);color:#fff}
+
+  .search{width:100%;background:var(--panel2);border:1px solid var(--line);color:var(--txt);
+          padding:12px 14px;border-radius:12px;margin-bottom:12px}
+
+  table{width:100%;border-collapse:collapse}
+  th,td{text-align:left;padding:10px 8px;border-bottom:1px solid var(--line);font-size:14px}
+  th{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.5px}
+  td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;font-weight:700}
+  tr:last-child td{border-bottom:none}
+
+  .cont-card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+             padding:13px;margin-bottom:11px;cursor:pointer;transition:.15s}
+  .cont-card:active{background:var(--panel2)}
+  .cont-card .top{display:flex;justify-content:space-between;align-items:center;gap:8px}
+  .cont-card .cod{font-weight:800;font-size:16px}
+  .cont-card .meta{font-size:12px;color:var(--muted);margin-top:4px}
+  .badge{font-size:11px;font-weight:800;padding:3px 9px;border-radius:20px;white-space:nowrap}
+  .badge.recibido{background:rgba(46,204,113,.18);color:#2ecc71}
+  .badge.transito{background:rgba(245,166,35,.18);color:#f5a623}
+  .badge.descargado{background:rgba(45,156,219,.18);color:#2d9cdb}
+  .pill{display:inline-block;background:var(--panel2);border:1px solid var(--line);border-radius:20px;
+        padding:3px 10px;font-size:12px;font-weight:700;color:var(--brand)}
+
+  /* Modal */
+  .modal{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.6);display:none;
+         align-items:flex-end;justify-content:center}
+  .modal.open{display:flex}
+  .sheet{background:var(--bg);width:100%;max-width:820px;max-height:92vh;overflow-y:auto;
+         border-radius:18px 18px 0 0;border:1px solid var(--line);border-bottom:none;padding:16px 16px 90px}
+  .sheet .bar{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+  .sheet h3{margin:0;font-size:17px}
+  .x{background:var(--panel2);border:1px solid var(--line);color:var(--txt);width:36px;height:36px;
+     border-radius:50%;font-size:18px;cursor:pointer}
+  .empty{text-align:center;color:var(--muted);padding:30px 10px;font-size:14px}
+  .empty .big{font-size:40px;margin-bottom:8px;opacity:.6}
+  .line-item{display:flex;justify-content:space-between;align-items:center;gap:8px;
+             padding:11px 0;border-bottom:1px solid var(--line)}
+  .line-item .nm{font-weight:700}
+  .line-item .ob{font-size:12px;color:var(--muted)}
+  .qty{font-size:18px;font-weight:800;color:var(--brand);font-variant-numeric:tabular-nums}
+  .toast{position:fixed;bottom:88px;left:50%;transform:translateX(-50%);background:#111d29;
+         border:1px solid var(--brand);color:#fff;padding:11px 18px;border-radius:30px;font-size:14px;
+         font-weight:700;z-index:80;opacity:0;transition:.3s;pointer-events:none;box-shadow:0 6px 20px rgba(0,0,0,.5)}
+  .toast.show{opacity:1}
+  .flt{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+  .flt button{background:var(--panel2);border:1px solid var(--line);color:var(--muted);padding:7px 12px;
+              border-radius:20px;font-size:12px;font-weight:700;cursor:pointer}
+  .flt button.on{background:var(--brand);color:#052;border-color:var(--brand)}
+  .muted{color:var(--muted)} .center{text-align:center}
+  .hint{font-size:12px;color:var(--muted);margin:-4px 0 10px}
+  .rowbtns{display:flex;gap:8px;margin-top:6px}
+
+  /* Login gate */
+  #gate{position:fixed;inset:0;z-index:100;background:var(--bg);display:flex;align-items:center;justify-content:center;padding:20px}
+  #gate .box{width:100%;max-width:340px;text-align:center}
+  #gate .lg{font-size:56px;margin-bottom:6px}
+  #gate h1{font-size:20px;margin:0 0 4px}
+  #gate p{color:var(--muted);font-size:13px;margin:0 0 20px}
+</style>
+</head>
+<body>
+
+<!-- PIN gate -->
+<div id="gate">
+  <div class="box">
+    <div class="lg">📦</div>
+    <h1>INVENTARIO ALIMENTADORES</h1>
+    <p>GMSB · Ingrese la clave del equipo</p>
+    <input id="pin" class="fld" type="password" inputmode="numeric" placeholder="CLAVE" style="text-align:center;font-size:22px;letter-spacing:6px">
+    <button class="btn" onclick="checkPin()">ENTRAR</button>
+    <p id="pinErr" style="color:var(--danger);margin-top:12px;display:none">Clave incorrecta</p>
+  </div>
+</div>
+
+<header>
+  <div class="wrap" style="padding:0">
+    <div class="row">
+      <span id="conn" class="dot" title="Conexion"></span>
+      <div style="flex:1">
+        <h1>INVENTARIO DE ALIMENTADORES</h1>
+        <div class="sub" id="connTxt">GMSB · Conectando…</div>
+      </div>
+      <button class="btn sm sec" onclick="loadAll()">⟳</button>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <!-- ============ VIEW: INVENTARIO ============ -->
+  <section id="v-inv" class="view active">
+    <div class="stats">
+      <div class="stat"><b id="st-tipos">0</b><span>Tipos pieza</span></div>
+      <div class="stat"><b id="st-piezas">0</b><span>Piezas total</span></div>
+      <div class="stat"><b id="st-cont">0</b><span>Contenedores</span></div>
+    </div>
+    <input id="invSearch" class="search" placeholder="🔎 Buscar pieza…" oninput="renderInv()">
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <h2 style="margin:0">Inventario total</h2>
+        <button class="btn sm sec" onclick="exportInv()">⬇ CSV</button>
+      </div>
+      <div id="invTable"></div>
+    </div>
+  </section>
+
+  <!-- ============ VIEW: CONTENEDORES ============ -->
+  <section id="v-cont" class="view">
+    <button class="btn" onclick="openContForm()">＋ NUEVO CONTENEDOR</button>
+    <div class="flt" style="margin-top:12px">
+      <button data-f="todos" class="on" onclick="setContFilter('todos')">Todos</button>
+      <button data-f="En transito" onclick="setContFilter('En transito')">En tránsito</button>
+      <button data-f="Recibido" onclick="setContFilter('Recibido')">Recibido</button>
+      <button data-f="Descargado" onclick="setContFilter('Descargado')">Descargado</button>
+    </div>
+    <div id="contList"></div>
+  </section>
+
+  <!-- ============ VIEW: PIEZAS ============ -->
+  <section id="v-piezas" class="view">
+    <div class="card">
+      <h2>Agregar tipo de pieza</h2>
+      <label>Nombre de la pieza</label>
+      <input id="tpNombre" class="fld" placeholder="Ej: TOLVA 500L, MOTOR, PANEL SOLAR…">
+      <div class="grid2">
+        <div><label>Unidad</label><input id="tpUnidad" class="fld" value="unidad"></div>
+        <div><label>Categoría (opcional)</label><input id="tpCat" class="fld" placeholder="Estructura, Eléctrico…"></div>
+      </div>
+      <button class="btn" onclick="addTipo()">＋ AGREGAR PIEZA</button>
+    </div>
+    <div class="card">
+      <h2>Catálogo de piezas (<span id="tpCount">0</span>)</h2>
+      <div id="tipoList"></div>
+    </div>
+  </section>
+
+</div>
+
+<!-- Bottom nav -->
+<nav class="tabs">
+  <button data-v="v-inv" class="active" onclick="showView('v-inv')"><span class="ic">📊</span>Inventario</button>
+  <button data-v="v-cont" onclick="showView('v-cont')"><span class="ic">🚢</span>Contenedores</button>
+  <button data-v="v-piezas" onclick="showView('v-piezas')"><span class="ic">🔧</span>Piezas</button>
+</nav>
+
+<!-- Modal contenedor form -->
+<div id="mForm" class="modal">
+  <div class="sheet">
+    <div class="bar"><h3 id="mFormTitle">Nuevo contenedor</h3><button class="x" onclick="closeModal('mForm')">✕</button></div>
+    <input type="hidden" id="cId">
+    <label>Código / Número del contenedor *</label>
+    <input id="cCodigo" class="fld" placeholder="Ej: CONT-001, MSCU1234567">
+    <div class="grid2">
+      <div><label>Fecha de llegada</label><input id="cFecha" class="fld" type="date"></div>
+      <div><label>Estado</label>
+        <select id="cEstado" class="fld">
+          <option>En transito</option><option selected>Recibido</option><option>Descargado</option>
+        </select>
+      </div>
+    </div>
+    <label>Descripción (opcional)</label>
+    <textarea id="cDesc" class="fld" rows="2" placeholder="Ej: Trae tolvas y estructuras"></textarea>
+    <button class="btn" onclick="saveCont()">GUARDAR CONTENEDOR</button>
+  </div>
+</div>
+
+<!-- Modal contenedor detalle -->
+<div id="mDetail" class="modal">
+  <div class="sheet">
+    <div class="bar">
+      <h3 id="dTitle">Contenedor</h3>
+      <button class="x" onclick="closeModal('mDetail')">✕</button>
+    </div>
+    <div id="dMeta" class="meta" style="margin-bottom:12px"></div>
+    <div class="rowbtns" style="margin-bottom:14px">
+      <button class="btn sm sec" onclick="editCont()">✎ Editar</button>
+      <button class="btn sm sec" onclick="exportCont()">⬇ CSV</button>
+      <button class="btn sm danger" onclick="delCont()">🗑 Borrar</button>
+    </div>
+
+    <div class="card" style="margin-bottom:14px">
+      <h2>Agregar pieza a este contenedor</h2>
+      <label>Pieza (escriba o elija)</label>
+      <input id="lPieza" class="fld" list="tiposList" placeholder="Ej: TOLVA 500L">
+      <datalist id="tiposList"></datalist>
+      <div class="hint">Si la pieza no existe, se crea automáticamente.</div>
+      <div class="grid2">
+        <div><label>Cantidad</label><input id="lCant" class="fld" type="number" inputmode="decimal" min="0" placeholder="0"></div>
+        <div><label>Observación</label><input id="lObs" class="fld" placeholder="Opcional"></div>
+      </div>
+      <button class="btn blue" onclick="addLine()">＋ AGREGAR PIEZA</button>
+    </div>
+
+    <h2 style="font-size:14px;color:var(--muted);text-transform:uppercase;letter-spacing:.6px">
+      Piezas en este contenedor</h2>
+    <div id="dLines"></div>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+// ================= CONFIG =================
+const SB_URL = "https://kqqrlsuaxhuoziheboks.supabase.co";
+const SB_KEY = "sb_publishable_XyyglDboudkU6Fy0shhbZA_3Ak_hMZL";
+const TEAM_PIN = "2024"; // clave del equipo (cambiela cuando quiera)
+const sb = supabase.createClient(SB_URL, SB_KEY);
+
+// ================= STATE =================
+let tipos = [], contenedores = [], piezas = [];
+let contFilter = 'todos';
+let currentCont = null;
+
+// ================= GATE =================
+if(sessionStorage.getItem('alim_ok')==='1'){ document.getElementById('gate').style.display='none'; }
+function checkPin(){
+  const v = document.getElementById('pin').value.trim();
+  if(v===TEAM_PIN){ sessionStorage.setItem('alim_ok','1'); document.getElementById('gate').style.display='none'; }
+  else { document.getElementById('pinErr').style.display='block'; }
+}
+document.getElementById('pin').addEventListener('keydown',e=>{ if(e.key==='Enter') checkPin(); });
+
+// ================= HELPERS =================
+function toast(m){ const t=document.getElementById('toast'); t.textContent=m; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2200); }
+function conn(ok,txt){ const d=document.getElementById('conn'); d.className='dot '+(ok?'on':'off'); document.getElementById('connTxt').textContent=txt; }
+function fmt(n){ n=Number(n)||0; return (Math.round(n*100)/100).toLocaleString('es-HN'); }
+function esc(s){ return (s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function fecha(d){ if(!d) return ''; const p=d.split('-'); return p.length===3? p[2]+'/'+p[1]+'/'+p[0] : d; }
+function tipoNombre(id){ const t=tipos.find(x=>x.id===id); return t?t.nombre:'(pieza)'; }
+function tipoUnidad(id){ const t=tipos.find(x=>x.id===id); return t?t.unidad:''; }
+
+// ================= LOAD =================
+async function loadAll(){
+  conn(false,'GMSB · Cargando…');
+  try{
+    const [rt,rc,rp] = await Promise.all([
+      sb.from('alim_tipos_pieza').select('*').order('nombre'),
+      sb.from('alim_contenedores').select('*').order('created_at',{ascending:false}),
+      sb.from('alim_piezas_recibidas').select('*')
+    ]);
+    if(rt.error||rc.error||rp.error) throw (rt.error||rc.error||rp.error);
+    tipos = rt.data; contenedores = rc.data; piezas = rp.data;
+    conn(true,'GMSB · Conectado ✓');
+    renderAll();
+  }catch(e){ conn(false,'Sin conexión — revise internet'); console.error(e); toast('Error al cargar'); }
+}
+
+function renderAll(){ renderInv(); renderCont(); renderTipos(); renderDatalist(); if(currentCont) renderDetail(); }
+
+// ================= INVENTARIO =================
+function renderInv(){
+  const q = (document.getElementById('invSearch').value||'').toLowerCase();
+  // sumar piezas por tipo
+  const totals = {};
+  piezas.forEach(p=>{ totals[p.tipo_pieza_id]=(totals[p.tipo_pieza_id]||0)+Number(p.cantidad||0); });
+  const rows = tipos.map(t=>({nombre:t.nombre,unidad:t.unidad,cat:t.categoria,total:totals[t.id]||0}))
+                    .filter(r=>r.nombre.toLowerCase().includes(q))
+                    .sort((a,b)=>b.total-a.total || a.nombre.localeCompare(b.nombre));
+  const totalPiezas = Object.values(totals).reduce((a,b)=>a+b,0);
+  document.getElementById('st-tipos').textContent = tipos.length;
+  document.getElementById('st-piezas').textContent = fmt(totalPiezas);
+  document.getElementById('st-cont').textContent = contenedores.length;
+
+  if(rows.length===0){ document.getElementById('invTable').innerHTML =
+    '<div class="empty"><div class="big">📦</div>'+(tipos.length?'Sin resultados':'Aún no hay piezas registradas.<br>Cree un contenedor y agréguele piezas.')+'</div>'; return; }
+  let h='<table><thead><tr><th>Pieza</th><th class="num">Total</th></tr></thead><tbody>';
+  rows.forEach(r=>{ h+=`<tr><td><b>${esc(r.nombre)}</b>${r.cat?`<br><span class="muted" style="font-size:12px">${esc(r.cat)}</span>`:''}</td>
+      <td class="num">${fmt(r.total)} <span class="muted" style="font-weight:400;font-size:12px">${esc(r.unidad||'')}</span></td></tr>`; });
+  h+='</tbody></table>';
+  document.getElementById('invTable').innerHTML=h;
+}
+function exportInv(){
+  const totals={}; piezas.forEach(p=>{ totals[p.tipo_pieza_id]=(totals[p.tipo_pieza_id]||0)+Number(p.cantidad||0); });
+  let csv='Pieza,Unidad,Categoria,Total\n';
+  tipos.forEach(t=>{ csv+=`"${t.nombre}","${t.unidad||''}","${t.categoria||''}",${totals[t.id]||0}\n`; });
+  download('inventario_total.csv',csv);
+}
+
+// ================= CONTENEDORES =================
+function setContFilter(f){ contFilter=f; document.querySelectorAll('.flt button').forEach(b=>b.classList.toggle('on',b.dataset.f===f)); renderCont(); }
+function renderCont(){
+  let list = contenedores;
+  if(contFilter!=='todos') list = list.filter(c=>c.estado===contFilter);
+  if(list.length===0){ document.getElementById('contList').innerHTML='<div class="empty"><div class="big">🚢</div>No hay contenedores'+(contFilter!=='todos'?' en este estado':'.<br>Toque “Nuevo contenedor” para empezar')+'</div>'; return; }
+  let h='';
+  list.forEach(c=>{
+    const n = piezas.filter(p=>p.contenedor_id===c.id);
+    const totalP = n.reduce((a,p)=>a+Number(p.cantidad||0),0);
+    const cls = c.estado==='Recibido'?'recibido':c.estado==='Descargado'?'descargado':'transito';
+    h+=`<div class="cont-card" onclick="openDetail('${c.id}')">
+      <div class="top"><span class="cod">🚢 ${esc(c.codigo)}</span><span class="badge ${cls}">${esc(c.estado)}</span></div>
+      <div class="meta">${c.fecha_llegada?'📅 '+fecha(c.fecha_llegada)+' · ':''}${n.length} tipo(s) · <b style="color:var(--brand)">${fmt(totalP)} piezas</b>${c.descripcion?'<br>'+esc(c.descripcion):''}</div>
+    </div>`;
+  });
+  document.getElementById('contList').innerHTML=h;
+}
+
+function openContForm(){
+  document.getElementById('mFormTitle').textContent='Nuevo contenedor';
+  document.getElementById('cId').value='';
+  document.getElementById('cCodigo').value='';
+  document.getElementById('cFecha').value=new Date().toISOString().slice(0,10);
+  document.getElementById('cEstado').value='Recibido';
+  document.getElementById('cDesc').value='';
+  openModal('mForm');
+}
+function editCont(){
+  const c=currentCont; if(!c) return;
+  document.getElementById('mFormTitle').textContent='Editar contenedor';
+  document.getElementById('cId').value=c.id;
+  document.getElementById('cCodigo').value=c.codigo;
+  document.getElementById('cFecha').value=c.fecha_llegada||'';
+  document.getElementById('cEstado').value=c.estado;
+  document.getElementById('cDesc').value=c.descripcion||'';
+  closeModal('mDetail'); openModal('mForm');
+}
+async function saveCont(){
+  const codigo=document.getElementById('cCodigo').value.trim();
+  if(!codigo){ toast('Escriba el código'); return; }
+  const rec={ codigo, fecha_llegada:document.getElementById('cFecha').value||null,
+              estado:document.getElementById('cEstado').value, descripcion:document.getElementById('cDesc').value.trim()||null };
+  const id=document.getElementById('cId').value;
+  let res;
+  if(id) res=await sb.from('alim_contenedores').update(rec).eq('id',id).select().single();
+  else   res=await sb.from('alim_contenedores').insert(rec).select().single();
+  if(res.error){ toast(res.error.message.includes('duplicate')?'Ese código ya existe':'Error al guardar'); return; }
+  closeModal('mForm'); toast(id?'Contenedor actualizado':'Contenedor creado'); await loadAll();
+  if(id) currentCont=contenedores.find(c=>c.id===id);
+}
+async function delCont(){
+  if(!currentCont) return;
+  if(!confirm('¿Borrar el contenedor '+currentCont.codigo+' y todas sus piezas registradas?')) return;
+  const {error}=await sb.from('alim_contenedores').delete().eq('id',currentCont.id);
+  if(error){ toast('Error al borrar'); return; }
+  closeModal('mDetail'); currentCont=null; toast('Contenedor borrado'); loadAll();
+}
+
+// ================= DETALLE + LINEAS =================
+function openDetail(id){ currentCont=contenedores.find(c=>c.id===id); if(!currentCont) return; renderDetail(); openModal('mDetail'); }
+function renderDetail(){
+  const c=currentCont; if(!c) return;
+  document.getElementById('dTitle').textContent='🚢 '+c.codigo;
+  const cls=c.estado==='Recibido'?'recibido':c.estado==='Descargado'?'descargado':'transito';
+  document.getElementById('dMeta').innerHTML =
+    `<span class="badge ${cls}">${esc(c.estado)}</span> ${c.fecha_llegada?'&nbsp; 📅 '+fecha(c.fecha_llegada):''}${c.descripcion?'<br><span class="muted" style="font-size:13px">'+esc(c.descripcion)+'</span>':''}`;
+  const lines=piezas.filter(p=>p.contenedor_id===c.id)
+                    .sort((a,b)=>tipoNombre(a.tipo_pieza_id).localeCompare(tipoNombre(b.tipo_pieza_id)));
+  if(lines.length===0){ document.getElementById('dLines').innerHTML='<div class="empty"><div class="big">🔧</div>Aún sin piezas.<br>Agregue arriba.</div>'; return; }
+  const totalP=lines.reduce((a,p)=>a+Number(p.cantidad||0),0);
+  let h='';
+  lines.forEach(l=>{
+    h+=`<div class="line-item">
+      <div><div class="nm">${esc(tipoNombre(l.tipo_pieza_id))}</div>${l.observacion?'<div class="ob">'+esc(l.observacion)+'</div>':''}</div>
+      <div style="display:flex;align-items:center;gap:12px">
+        <span class="qty">${fmt(l.cantidad)} <span class="muted" style="font-size:12px;font-weight:400">${esc(tipoUnidad(l.tipo_pieza_id))}</span></span>
+        <button class="x" style="width:30px;height:30px;font-size:14px" onclick="delLine('${l.id}')">✕</button>
+      </div></div>`;
+  });
+  h+=`<div style="text-align:right;margin-top:12px"><span class="pill">TOTAL: ${fmt(totalP)} piezas</span></div>`;
+  document.getElementById('dLines').innerHTML=h;
+}
+function renderDatalist(){
+  document.getElementById('tiposList').innerHTML = tipos.map(t=>`<option value="${esc(t.nombre)}">`).join('');
+}
+async function ensureTipo(nombre){
+  const found=tipos.find(t=>t.nombre.toLowerCase()===nombre.toLowerCase());
+  if(found) return found.id;
+  const {data,error}=await sb.from('alim_tipos_pieza').insert({nombre}).select().single();
+  if(error){ throw error; }
+  tipos.push(data); return data.id;
+}
+async function addLine(){
+  const c=currentCont; if(!c) return;
+  const nombre=document.getElementById('lPieza').value.trim();
+  const cant=parseFloat(document.getElementById('lCant').value);
+  if(!nombre){ toast('Escriba la pieza'); return; }
+  if(isNaN(cant)||cant<0){ toast('Cantidad inválida'); return; }
+  try{
+    const tipoId=await ensureTipo(nombre);
+    const {error}=await sb.from('alim_piezas_recibidas').insert({
+      contenedor_id:c.id, tipo_pieza_id:tipoId, cantidad:cant,
+      observacion:document.getElementById('lObs').value.trim()||null });
+    if(error) throw error;
+    document.getElementById('lPieza').value=''; document.getElementById('lCant').value=''; document.getElementById('lObs').value='';
+    toast('Pieza agregada'); await loadAll();
+  }catch(e){ console.error(e); toast('Error al agregar'); }
+}
+async function delLine(id){
+  if(!confirm('¿Quitar esta pieza del contenedor?')) return;
+  const {error}=await sb.from('alim_piezas_recibidas').delete().eq('id',id);
+  if(error){ toast('Error'); return; }
+  toast('Pieza quitada'); await loadAll();
+}
+function exportCont(){
+  const c=currentCont; if(!c) return;
+  const lines=piezas.filter(p=>p.contenedor_id===c.id);
+  let csv='Contenedor,'+c.codigo+'\nPieza,Cantidad,Unidad,Observacion\n';
+  lines.forEach(l=>{ csv+=`"${tipoNombre(l.tipo_pieza_id)}",${l.cantidad},"${tipoUnidad(l.tipo_pieza_id)}","${l.observacion||''}"\n`; });
+  download('contenedor_'+c.codigo+'.csv',csv);
+}
+
+// ================= TIPOS =================
+async function addTipo(){
+  const nombre=document.getElementById('tpNombre').value.trim();
+  if(!nombre){ toast('Escriba el nombre'); return; }
+  const rec={ nombre, unidad:document.getElementById('tpUnidad').value.trim()||'unidad',
+              categoria:document.getElementById('tpCat').value.trim()||null };
+  const {error}=await sb.from('alim_tipos_pieza').insert(rec);
+  if(error){ toast(error.message.includes('duplicate')?'Esa pieza ya existe':'Error'); return; }
+  document.getElementById('tpNombre').value=''; document.getElementById('tpCat').value='';
+  toast('Pieza agregada al catálogo'); loadAll();
+}
+function renderTipos(){
+  document.getElementById('tpCount').textContent=tipos.length;
+  if(tipos.length===0){ document.getElementById('tipoList').innerHTML='<div class="empty muted">Sin piezas aún</div>'; return; }
+  const usados={}; piezas.forEach(p=>usados[p.tipo_pieza_id]=(usados[p.tipo_pieza_id]||0)+Number(p.cantidad||0));
+  let h='';
+  tipos.forEach(t=>{
+    h+=`<div class="line-item">
+      <div><div class="nm">${esc(t.nombre)}</div><div class="ob">${esc(t.unidad||'')}${t.categoria?' · '+esc(t.categoria):''} · en inventario: ${fmt(usados[t.id]||0)}</div></div>
+      <button class="x" style="width:30px;height:30px;font-size:14px" onclick="delTipo('${t.id}','${esc(t.nombre).replace(/'/g,"")}')">✕</button>
+    </div>`;
+  });
+  document.getElementById('tipoList').innerHTML=h;
+}
+async function delTipo(id,nombre){
+  const enUso=piezas.some(p=>p.tipo_pieza_id===id);
+  if(enUso){ toast('No se puede: la pieza está usada en contenedores'); return; }
+  if(!confirm('¿Borrar la pieza "'+nombre+'" del catálogo?')) return;
+  const {error}=await sb.from('alim_tipos_pieza').delete().eq('id',id);
+  if(error){ toast('Error'); return; }
+  toast('Pieza borrada'); loadAll();
+}
+
+// ================= UI =================
+function showView(v){ document.querySelectorAll('.view').forEach(s=>s.classList.toggle('active',s.id===v));
+  document.querySelectorAll('.tabs button').forEach(b=>b.classList.toggle('active',b.dataset.v===v)); }
+function openModal(id){ document.getElementById(id).classList.add('open'); }
+function closeModal(id){ document.getElementById(id).classList.remove('open'); if(id==='mDetail') currentCont=null; }
+function download(name,csv){ const b=new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8'});
+  const u=URL.createObjectURL(b); const a=document.createElement('a'); a.href=u; a.download=name; a.click(); URL.revokeObjectURL(u); }
+
+// ================= REALTIME =================
+sb.channel('alim-live')
+  .on('postgres_changes',{event:'*',schema:'public',table:'alim_contenedores'},()=>loadAll())
+  .on('postgres_changes',{event:'*',schema:'public',table:'alim_tipos_pieza'},()=>loadAll())
+  .on('postgres_changes',{event:'*',schema:'public',table:'alim_piezas_recibidas'},()=>loadAll())
+  .subscribe();
+
+// ================= INIT =================
+loadAll();
+</script>
+</body>
+</html>
