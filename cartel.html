@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cartel Inventario GMSB</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  :root{ --negro:#0a0a0c; --cian:#0891b2; --cian2:#06b6d4; --lima:#84cc16; --tinta:#0f1216; --suave:#5b6672; --linea:#e3e8ee; }
+  body{ font-family:"Inter",-apple-system,"Segoe UI",Roboto,sans-serif; color:var(--tinta); background:#eef2f6; display:flex; justify-content:center; padding:24px; }
+  .cartel{ width:100%; max-width:640px; background:#fff; border-radius:22px; overflow:hidden; box-shadow:0 20px 60px rgba(15,37,64,.18); }
+  .top{ background:radial-gradient(120% 160% at 0% 0%, rgba(255,255,255,.14), transparent 45%), linear-gradient(135deg,var(--negro) 0%, #14141a 55%, var(--cian2) 140%); color:#fff; padding:30px 30px 26px; text-align:center; position:relative; }
+  .top::after{ content:""; position:absolute; left:0;right:0;bottom:0; height:4px; background:linear-gradient(90deg,var(--cian),var(--lima)); }
+  .ico{ width:78px;height:78px; border-radius:18px; display:block; margin:0 auto 12px; box-shadow:0 8px 22px rgba(0,0,0,.35); }
+  .top h1{ font-size:25px; font-weight:900; letter-spacing:.3px; line-height:1.1 }
+  .top .emp{ display:inline-block; margin-top:8px; font-size:12px; font-weight:800; letter-spacing:3px; background:rgba(255,255,255,.15); border:1px solid rgba(255,255,255,.25); padding:4px 14px; border-radius:20px }
+  .body{ padding:28px 30px 30px; text-align:center }
+  .lead{ font-size:15px; color:var(--suave); font-weight:600; margin-bottom:18px }
+  .qrbox{ display:inline-block; padding:14px; background:#fff; border:3px solid var(--negro); border-radius:18px; }
+  .qrbox img{ width:210px; height:210px; display:block; image-rendering:pixelated }
+  .escanea{ font-size:13px; font-weight:800; color:var(--cian); text-transform:uppercase; letter-spacing:1.5px; margin:14px 0 4px }
+  .link{ font-size:14px; font-weight:700; word-break:break-all; color:var(--tinta); background:#f1f6f9; border:1px dashed #b9d6df; border-radius:10px; padding:10px 12px; margin:6px auto 0; max-width:440px }
+  .clave{ margin:22px auto 4px; display:flex; align-items:center; justify-content:center; gap:12px; background:linear-gradient(135deg,var(--lima),#4d7c0f); color:#0a1400; border-radius:16px; padding:14px 22px; max-width:340px }
+  .clave .lbl{ font-size:13px; font-weight:800; text-transform:uppercase; letter-spacing:1px; opacity:.85; text-align:left }
+  .clave .val{ font-size:34px; font-weight:900; letter-spacing:8px; line-height:1 }
+  .pasos{ text-align:left; margin:26px auto 6px; max-width:460px }
+  .pasos h2{ font-size:13px; text-transform:uppercase; letter-spacing:1.2px; color:var(--suave); text-align:center; margin-bottom:14px }
+  .paso{ display:flex; align-items:flex-start; gap:14px; padding:12px 0; border-bottom:1px solid var(--linea) }
+  .paso:last-child{ border-bottom:none }
+  .num{ flex:0 0 auto; width:34px;height:34px; border-radius:50%; display:grid; place-items:center; font-weight:900; font-size:16px; background:linear-gradient(135deg,var(--cian),var(--cian2)); color:#04252e }
+  .paso .txt b{ font-size:15px } .paso .txt span{ display:block; font-size:13px; color:var(--suave); margin-top:2px }
+  .tip{ margin-top:20px; font-size:12.5px; color:var(--suave); background:#f6fafb; border-radius:12px; padding:12px 14px; line-height:1.5; text-align:left }
+  .tip b{ color:var(--cian) }
+  .pie{ background:var(--negro); color:#9aa7b4; text-align:center; font-size:12px; font-weight:600; padding:12px }
+  .pie b{ color:#fff }
+  @media print{ body{ background:#fff; padding:0 } .cartel{ box-shadow:none; max-width:100%; border-radius:0 } @page{ margin:12mm } }
+</style>
+</head>
+<body>
+  <div class="cartel">
+    <div class="top">
+      <img class="ico" src="icon-192.png" alt="">
+      <h1>INVENTARIO<br>DE ALIMENTADORES</h1>
+      <div class="emp">GMSB</div>
+    </div>
+    <div class="body">
+      <p class="lead">Control de piezas por contenedor &middot; desde tu celular</p>
+      <div class="qrbox"><img src="qr.png" alt="QR"></div>
+      <div class="escanea">Escanea para entrar</div>
+      <div class="link">https://rudisaplicanolopez-afk.github.io/inventario/</div>
+      <div class="clave"><span class="lbl">Clave del<br>equipo</span><span class="val">2024</span></div>
+      <div class="pasos">
+        <h2>Como usarla</h2>
+        <div class="paso"><div class="num">1</div><div class="txt"><b>&#128674; Registra el contenedor</b><span>En "Contenedores" toca "Nuevo" y pon el codigo, la fecha y el estado.</span></div></div>
+        <div class="paso"><div class="num">2</div><div class="txt"><b>&#128295; Agrega las piezas</b><span>Abre el contenedor y anota cada pieza con su cantidad. Si es nueva, se crea sola.</span></div></div>
+        <div class="paso"><div class="num">3</div><div class="txt"><b>&#128202; Mira el inventario</b><span>En "Inventario" ves el total de todas las piezas sumadas. Todos ven lo mismo al instante.</span></div></div>
+      </div>
+      <div class="tip">&#128161; <b>Instalala como app:</b> toca "Instalar app" o el menu del navegador y "Agregar a pantalla principal". Te queda el iconito en el celular.</div>
+    </div>
+    <div class="pie">GMSB &middot; Tecnificacion de alimentadores &nbsp;|&nbsp; Dudas? Pregunta a <b>Rudis</b></div>
+  </div>
+</body>
+</html>
