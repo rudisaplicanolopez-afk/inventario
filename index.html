@@ -163,6 +163,17 @@ tr:last-child td{ border-bottom:none }
 [data-theme="dark"] .badge.descargado{ color:#22d3ee }
 .pill{ display:inline-block; background:var(--chip-bg); border:1px solid var(--borde); border-radius:20px; padding:4px 11px; font-size:12px; font-weight:800; color:var(--accent) }
 
+/* ---------- Fotos del contenedor ---------- */
+.fotos-grid{ display:grid; grid-template-columns:1fr 1fr; gap:10px }
+.foto-slot{ border:1px solid var(--borde); border-radius:12px; overflow:hidden; background:var(--input-bg); display:flex; flex-direction:column; transition:var(--trans) }
+.foto-slot.subiendo{ opacity:.5 }
+.foto-slot .cap{ font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.4px; color:var(--suave); padding:9px 8px 5px; text-align:center }
+.foto-thumb{ width:100%; aspect-ratio:4/3; object-fit:cover; background:#0a0a0c; display:block; cursor:pointer }
+.foto-empty{ width:100%; aspect-ratio:4/3; display:grid; place-items:center; color:var(--suave); font-size:38px; background:var(--chip-bg) }
+.foto-slot .act{ display:flex; gap:6px; padding:8px }
+.foto-slot .act button{ flex:1; font-size:12px; padding:9px 6px; border-radius:8px; border:1px solid var(--borde); background:var(--neutro); color:var(--texto); font-weight:700; cursor:pointer; font-family:inherit }
+.foto-slot .act button:active{ transform:translateY(1px) }
+
 .modal{ position:fixed; inset:0; z-index:80; background:rgba(0,0,0,.55); display:none; align-items:flex-end; justify-content:center }
 .modal.open{ display:flex }
 .sheet{ background:var(--superficie); width:100%; max-width:var(--ancho-max); max-height:92vh; overflow-y:auto;
@@ -320,6 +331,12 @@ tr:last-child td{ border-bottom:none }
       <button class="btn sm danger" onclick="delCont()">🗑 Borrar</button>
     </div>
     <div class="card" style="margin-bottom:14px">
+      <h2>📷 Fotos del contenedor</h2>
+      <div id="dFotos" class="fotos-grid"></div>
+      <input type="file" id="fotoInputAntes" accept="image/*" capture="environment" hidden onchange="onFotoSel('antes',this)">
+      <input type="file" id="fotoInputDespues" accept="image/*" capture="environment" hidden onchange="onFotoSel('despues',this)">
+    </div>
+    <div class="card" style="margin-bottom:14px">
       <h2>Agregar pieza a este contenedor</h2>
       <label>Pieza (escriba o elija)</label>
       <input id="lPieza" class="fld" list="tiposList" placeholder="Ej: TOLVA 500L">
@@ -462,7 +479,7 @@ function renderCont(){
     const cls=c.estado==='Recibido'?'recibido':c.estado==='Descargado'?'descargado':'transito';
     h+=`<div class="cont-card" onclick="openDetail('${c.id}')">
       <div class="top"><span class="cod">🚢 ${esc(c.codigo)}</span><span class="badge ${cls}">${esc(c.estado)}</span></div>
-      <div class="meta2">${c.fecha_llegada?'📅 '+fecha(c.fecha_llegada)+' · ':''}${n.length} tipo(s) · <b style="color:var(--accent)">${fmt(totalP)} piezas</b>${c.descripcion?'<br>'+esc(c.descripcion):''}</div>
+      <div class="meta2">${c.fecha_llegada?'📅 '+fecha(c.fecha_llegada)+' · ':''}${n.length} tipo(s) · <b style="color:var(--accent)">${fmt(totalP)} piezas</b>${(c.foto_antes||c.foto_despues)?' · 📷':''}${c.descripcion?'<br>'+esc(c.descripcion):''}</div>
     </div>`;
   });
   document.getElementById('contList').innerHTML=h;
@@ -514,6 +531,7 @@ function renderDetail(){
   document.getElementById('dTitle').textContent='🚢 '+c.codigo;
   const cls=c.estado==='Recibido'?'recibido':c.estado==='Descargado'?'descargado':'transito';
   document.getElementById('dMeta').innerHTML=`<span class="badge ${cls}">${esc(c.estado)}</span> ${c.fecha_llegada?'&nbsp; 📅 '+fecha(c.fecha_llegada):''}${c.descripcion?'<br><span class="muted" style="font-size:13px">'+esc(c.descripcion)+'</span>':''}`;
+  renderFotos();
   const lines=piezas.filter(p=>p.contenedor_id===c.id).sort((a,b)=>tipoNombre(a.tipo_pieza_id).localeCompare(tipoNombre(b.tipo_pieza_id)));
   if(lines.length===0){ document.getElementById('dLines').innerHTML='<div class="empty"><div class="big">🔧</div>Aún sin piezas.<br>Agregue arriba.</div>'; return; }
   const totalP=lines.reduce((a,p)=>a+Number(p.cantidad||0),0);
@@ -530,6 +548,70 @@ function renderDetail(){
   document.getElementById('dLines').innerHTML=h;
 }
 function renderDatalist(){ document.getElementById('tiposList').innerHTML=tipos.map(t=>`<option value="${esc(t.nombre)}">`).join(''); }
+
+// ---- Fotos del contenedor (antes / despues de descargar) ----
+function renderFotos(){
+  const c=currentCont; if(!c) return;
+  const cont=document.getElementById('dFotos'); if(!cont) return;
+  cont.innerHTML = slotFoto('antes','Antes de descargar', c.foto_antes) + slotFoto('despues','Después de descargar', c.foto_despues);
+}
+function slotFoto(tipo,label,url){
+  const vista = url
+    ? `<img class="foto-thumb" src="${esc(url)}" onclick="window.open('${esc(url)}','_blank')" alt="${esc(label)}">`
+    : `<div class="foto-empty">📷</div>`;
+  const btns = url
+    ? `<button onclick="pickFoto('${tipo}')">🔄 Cambiar</button><button onclick="borrarFoto('${tipo}')" title="Quitar">🗑</button>`
+    : `<button onclick="pickFoto('${tipo}')">📷 Tomar foto</button>`;
+  return `<div class="foto-slot" id="slot-${tipo}"><div class="cap">${label}</div>${vista}<div class="act">${btns}</div></div>`;
+}
+function pickFoto(tipo){
+  const inp=document.getElementById(tipo==='antes'?'fotoInputAntes':'fotoInputDespues');
+  if(inp) inp.click();
+}
+async function onFotoSel(tipo, input){
+  const file = input.files && input.files[0];
+  input.value='';
+  if(!file || !currentCont) return;
+  const slot=document.getElementById('slot-'+tipo); if(slot) slot.classList.add('subiendo');
+  toast('Subiendo foto…');
+  try{
+    const blob = await comprimirImagen(file);
+    const path = currentCont.id+'/'+tipo+'.jpg';
+    const { error:upErr } = await sb.storage.from('alim-fotos').upload(path, blob, { upsert:true, contentType:'image/jpeg' });
+    if(upErr) throw upErr;
+    const { data } = sb.storage.from('alim-fotos').getPublicUrl(path);
+    const url = data.publicUrl + '?t=' + Date.now(); // evita que quede la foto vieja en cache
+    const { error } = await sb.from('alim_contenedores').update({ ['foto_'+tipo]: url }).eq('id', currentCont.id);
+    if(error) throw error;
+    toast('Foto guardada ✓'); await loadAll();
+  }catch(e){ console.error(e); toast('Error al subir la foto'); if(slot) slot.classList.remove('subiendo'); }
+}
+// Reduce el tamaño de la foto antes de subir (rápido con señal lenta)
+function comprimirImagen(file, maxLado=1600, calidad=0.72){
+  return new Promise((resolve,reject)=>{
+    const img=new Image();
+    img.onload=()=>{
+      let w=img.naturalWidth, h=img.naturalHeight;
+      if(w>=h && w>maxLado){ h=Math.round(h*maxLado/w); w=maxLado; }
+      else if(h>w && h>maxLado){ w=Math.round(w*maxLado/h); h=maxLado; }
+      const cv=document.createElement('canvas'); cv.width=w; cv.height=h;
+      cv.getContext('2d').drawImage(img,0,0,w,h);
+      cv.toBlob(b=> b? resolve(b): reject(new Error('blob')), 'image/jpeg', calidad);
+    };
+    img.onerror=()=>reject(new Error('img'));
+    img.src=URL.createObjectURL(file);
+  });
+}
+async function borrarFoto(tipo){
+  if(!currentCont) return;
+  if(!confirm('¿Quitar esta foto?')) return;
+  try{
+    await sb.storage.from('alim-fotos').remove([currentCont.id+'/'+tipo+'.jpg']);
+    const { error } = await sb.from('alim_contenedores').update({ ['foto_'+tipo]: null }).eq('id', currentCont.id);
+    if(error) throw error;
+    toast('Foto quitada'); await loadAll();
+  }catch(e){ console.error(e); toast('Error'); }
+}
 async function ensureTipo(nombre){
   const found=tipos.find(t=>t.nombre.toLowerCase()===nombre.toLowerCase());
   if(found) return found.id;
