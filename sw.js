@@ -1,5 +1,5 @@
 /* Service Worker — cache del app shell para instalar como app y uso offline. */
-const CACHE = 'gmsb-inventario-v1';
+const CACHE = 'gmsb-inventario-v2';
 const ASSETS = [
   './',
   './index.html',

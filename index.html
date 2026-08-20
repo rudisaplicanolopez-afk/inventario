@@ -24,7 +24,7 @@
   (function () {
     try {
       var t = localStorage.getItem('gmsb_tema');
-      if (!t) t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      if (!t) t = 'light'; // por defecto CLARO en cada equipo nuevo (antes seguia al sistema)
       document.documentElement.setAttribute('data-theme', t);
     } catch (e) {}
   })();
@@ -355,7 +355,7 @@ let currentCont = null;
 function aplicarTemaBtn(){
   const t = document.documentElement.getAttribute('data-theme');
   const b = document.getElementById('btnTema');
-  if(b) b.textContent = (t==='dark') ? '☀️ Claro' : '🌙 Oscuro';
+  if(b) b.textContent = (t==='dark') ? '☀️ Cambiar a claro' : '🌙 Cambiar a oscuro';
   const meta = document.querySelector('meta[name=theme-color]');
   if(meta) meta.setAttribute('content', t==='dark' ? '#0a0a0c' : '#0891b2');
 }
