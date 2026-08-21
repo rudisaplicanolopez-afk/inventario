@@ -174,6 +174,27 @@ tr:last-child td{ border-bottom:none }
 .foto-slot .act button{ flex:1; font-size:12px; padding:9px 6px; border-radius:8px; border:1px solid var(--borde); background:var(--neutro); color:var(--texto); font-weight:700; cursor:pointer; font-family:inherit }
 .foto-slot .act button:active{ transform:translateY(1px) }
 
+/* ---------- Armar (alimentadores completos) ---------- */
+.armar-intro{ font-size:14px; color:var(--suave); font-weight:600; text-align:center; margin:2px 0 14px }
+.armar-card{ background:var(--glass-bg); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); border:1px solid var(--glass-border); border-radius:var(--radio); padding:16px; margin-bottom:14px; box-shadow:var(--sombra-md) }
+.armar-card .modelo{ font-size:13px; font-weight:800; text-transform:uppercase; letter-spacing:1px; color:var(--suave) }
+.armar-big{ display:flex; align-items:baseline; gap:10px; margin:6px 0 4px }
+.armar-big b{ font-size:46px; font-weight:900; line-height:1; color:var(--accent) }
+.armar-big span{ font-size:15px; font-weight:700; color:var(--texto) }
+.armar-topa{ font-size:13px; color:var(--texto); background:var(--chip-bg); border:1px solid var(--borde); border-radius:10px; padding:9px 12px; margin-top:8px }
+.armar-topa b{ color:var(--danger) }
+.armar-card.ok0 .armar-big b{ color:var(--danger) }
+.armar-det{ margin-top:12px }
+.armar-det summary{ cursor:pointer; font-size:12.5px; font-weight:800; color:var(--accent); text-transform:uppercase; letter-spacing:.4px; list-style:none; padding:6px 0 }
+.armar-det summary::-webkit-details-marker{ display:none }
+.armar-det table{ width:100%; border-collapse:collapse; margin-top:6px }
+.armar-det th,.armar-det td{ text-align:left; padding:8px 6px; border-bottom:1px solid var(--borde); font-size:13px }
+.armar-det th{ color:var(--suave); font-size:10.5px; text-transform:uppercase; letter-spacing:.4px }
+.armar-det td.num,.armar-det th.num{ text-align:right; font-variant-numeric:tabular-nums; font-weight:700 }
+.armar-det tr.limita td{ background:rgba(245,166,35,.14) }
+.armar-det tr.falta td{ background:rgba(220,38,38,.12) }
+.armar-det tr.limita td:first-child::after{ content:" ⚠"; }
+
 .modal{ position:fixed; inset:0; z-index:80; background:rgba(0,0,0,.55); display:none; align-items:flex-end; justify-content:center }
 .modal.open{ display:flex }
 .sheet{ background:var(--superficie); width:100%; max-width:var(--ancho-max); max-height:92vh; overflow-y:auto;
@@ -291,12 +312,19 @@ tr:last-child td{ border-bottom:none }
     </div>
   </section>
 
+  <!-- ARMAR -->
+  <section id="v-armar" class="view">
+    <div class="armar-intro">¿Cuántos alimentadores completos salen con lo que hay registrado?</div>
+    <div id="armarBody"></div>
+  </section>
+
 </div>
 
 <nav class="tabs">
   <button data-v="v-inv" class="active" onclick="showView('v-inv')"><span class="ic">📊</span>Inventario</button>
   <button data-v="v-cont" onclick="showView('v-cont')"><span class="ic">🚢</span>Contenedores</button>
   <button data-v="v-piezas" onclick="showView('v-piezas')"><span class="ic">🔧</span>Piezas</button>
+  <button data-v="v-armar" onclick="showView('v-armar')"><span class="ic">🏗️</span>Armar</button>
 </nav>
 
 <!-- Modal contenedor form -->
@@ -364,7 +392,7 @@ const TEAM_PIN = "2024";
 const sb = supabase.createClient(SB_URL, SB_KEY);
 
 // ================= STATE =================
-let tipos = [], contenedores = [], piezas = [];
+let tipos = [], contenedores = [], piezas = [], bom = [];
 let contFilter = 'todos';
 let currentCont = null;
 
@@ -430,18 +458,19 @@ document.getElementById('pin').addEventListener('keydown',e=>{ if(e.key==='Enter
 async function loadAll(){
   conn(false,'Cargando…');
   try{
-    const [rt,rc,rp] = await Promise.all([
+    const [rt,rc,rp,rb] = await Promise.all([
       sb.from('alim_tipos_pieza').select('*').order('nombre'),
       sb.from('alim_contenedores').select('*').order('created_at',{ascending:false}),
-      sb.from('alim_piezas_recibidas').select('*')
+      sb.from('alim_piezas_recibidas').select('*'),
+      sb.from('alim_bom').select('*').order('orden')
     ]);
     if(rt.error||rc.error||rp.error) throw (rt.error||rc.error||rp.error);
-    tipos=rt.data; contenedores=rc.data; piezas=rp.data;
+    tipos=rt.data; contenedores=rc.data; piezas=rp.data; bom=(rb&&!rb.error)?rb.data:[];
     conn(true,'Conectado ✓');
     renderAll();
   }catch(e){ conn(false,'Sin conexión — revise internet'); console.error(e); toast('Error al cargar'); }
 }
-function renderAll(){ renderInv(); renderCont(); renderTipos(); renderDatalist(); if(currentCont) renderDetail(); }
+function renderAll(){ renderInv(); renderCont(); renderTipos(); renderDatalist(); renderArmar(); if(currentCont) renderDetail(); }
 
 // ================= INVENTARIO =================
 function renderInv(){
@@ -464,6 +493,61 @@ function exportInv(){
   let csv='Pieza,Unidad,Categoria,Total\n';
   tipos.forEach(t=>{ csv+=`"${t.nombre}","${t.unidad||''}","${t.categoria||''}",${totals[t.id]||0}\n`; });
   download('inventario_total.csv',csv);
+}
+
+// ================= ARMAR (alimentadores completos) =================
+// Normaliza nombres para emparejar aunque cambie mayus/acentos/plural
+// (ej: "Tolvas" y "TOLVA" cuentan como la misma pieza).
+function norm(s){
+  return (s||'').toString().toUpperCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g,'')
+    .replace(/[^A-Z0-9 ]/g,' ').replace(/\s+/g,' ').trim()
+    .split(' ').map(w=> (w.length>3 && w.endsWith('S')) ? w.slice(0,-1) : w).join(' ');
+}
+function renderArmar(){
+  const cont=document.getElementById('armarBody'); if(!cont) return;
+  if(!bom || !bom.length){ cont.innerHTML='<div class="empty"><div class="big">🏗️</div>Aún no hay recetas de modelos cargadas.</div>'; return; }
+  // Inventario total por nombre normalizado (suma variantes/duplicados)
+  const invNorm={};
+  tipos.forEach(t=>{
+    const tot=piezas.filter(p=>p.tipo_pieza_id===t.id).reduce((a,p)=>a+Number(p.cantidad||0),0);
+    const k=norm(t.nombre); invNorm[k]=(invNorm[k]||0)+tot;
+  });
+  const orden=['PRECRIA','ENGORDE'];
+  const modelos=[...new Set(bom.map(b=>b.modelo))].sort((a,b)=>{
+    const ia=orden.indexOf(a), ib=orden.indexOf(b);
+    return (ia<0?99:ia)-(ib<0?99:ib) || a.localeCompare(b);
+  });
+  let h='';
+  modelos.forEach(m=>{
+    const items=bom.filter(b=>b.modelo===m).map(b=>{
+      const stock=invNorm[norm(b.pieza)]||0;
+      const req=Number(b.cantidad||1);
+      return { pieza:b.pieza, req, stock, alcanza:Math.floor(stock/req) };
+    });
+    const completos=items.length? Math.min(...items.map(i=>i.alcanza)) : 0;
+    const topan=items.filter(i=>i.alcanza===completos);
+    const nomModelo = m.charAt(0)+m.slice(1).toLowerCase();
+    let filas='';
+    items.forEach(i=>{
+      const cls = i.stock<i.req ? 'falta' : (i.alcanza===completos ? 'limita' : '');
+      filas+=`<tr class="${cls}"><td>${esc(i.pieza)}</td><td class="num">${fmt(i.req)}</td><td class="num">${fmt(i.stock)}</td><td class="num">${fmt(i.alcanza)}</td></tr>`;
+    });
+    const topaTxt = completos>0
+      ? `Pieza que topa: <b>${topan.map(i=>esc(i.pieza)).join(', ')}</b> (alcanza para ${fmt(completos)})`
+      : `Faltan piezas: <b>${topan.map(i=>esc(i.pieza)).join(', ')}</b>`;
+    h+=`<div class="armar-card ${completos===0?'ok0':''}">
+      <div class="modelo">🏗️ ${esc(nomModelo)}</div>
+      <div class="armar-big"><b>${fmt(completos)}</b><span>alimentador(es) completo(s)</span></div>
+      <div class="armar-topa">${topaTxt}</div>
+      <details class="armar-det">
+        <summary>Ver detalle por pieza ▾</summary>
+        <table><thead><tr><th>Pieza</th><th class="num">Lleva</th><th class="num">Hay</th><th class="num">Alcanza</th></tr></thead>
+        <tbody>${filas}</tbody></table>
+      </details>
+    </div>`;
+  });
+  cont.innerHTML=h;
 }
 
 // ================= CONTENEDORES =================
@@ -692,6 +776,7 @@ sb.channel('alim-live')
   .on('postgres_changes',{event:'*',schema:'public',table:'alim_contenedores'},()=>loadAll())
   .on('postgres_changes',{event:'*',schema:'public',table:'alim_tipos_pieza'},()=>loadAll())
   .on('postgres_changes',{event:'*',schema:'public',table:'alim_piezas_recibidas'},()=>loadAll())
+  .on('postgres_changes',{event:'*',schema:'public',table:'alim_bom'},()=>loadAll())
   .subscribe();
 
 // ================= SERVICE WORKER =================
