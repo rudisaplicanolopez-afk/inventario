@@ -175,7 +175,9 @@ tr:last-child td{ border-bottom:none }
 .foto-slot .act button:active{ transform:translateY(1px) }
 
 /* ---------- Armar (alimentadores completos) ---------- */
-.armar-intro{ font-size:14px; color:var(--suave); font-weight:600; text-align:center; margin:2px 0 14px }
+.armar-intro{ font-size:14px; color:var(--suave); font-weight:600; text-align:center; margin:2px 0 6px }
+.armar-sub{ font-size:12px; color:var(--suave); text-align:center; margin:0 0 14px }
+.armar-aviso{ font-size:12.5px; color:var(--texto); background:var(--aviso-bg,rgba(245,166,35,.14)); border:1px solid rgba(245,166,35,.35); border-radius:12px; padding:11px 13px; margin-bottom:14px }
 .armar-card{ background:var(--glass-bg); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); border:1px solid var(--glass-border); border-radius:var(--radio); padding:16px; margin-bottom:14px; box-shadow:var(--sombra-md) }
 .armar-card .modelo{ font-size:13px; font-weight:800; text-transform:uppercase; letter-spacing:1px; color:var(--suave) }
 .armar-big{ display:flex; align-items:baseline; gap:10px; margin:6px 0 4px }
@@ -315,6 +317,7 @@ tr:last-child td{ border-bottom:none }
   <!-- ARMAR -->
   <section id="v-armar" class="view">
     <div class="armar-intro">¿Cuántos alimentadores completos salen con lo que hay registrado?</div>
+    <div class="armar-sub">Cada modelo cuenta solo las piezas marcadas <b>Precría</b> o <b>Engorde</b> en el comentario.</div>
     <div id="armarBody"></div>
   </section>
 
@@ -504,14 +507,24 @@ function norm(s){
     .replace(/[^A-Z0-9 ]/g,' ').replace(/\s+/g,' ').trim()
     .split(' ').map(w=> (w.length>3 && w.endsWith('S')) ? w.slice(0,-1) : w).join(' ');
 }
+// Deduce el modelo de una pieza segun su comentario (tolera acentos y typos)
+function modeloDe(obs){
+  const o=norm(obs);
+  if(/PRECR|PRECI/.test(o)) return 'PRECRIA';
+  if(/ENGORD/.test(o)) return 'ENGORDE';
+  return null;
+}
 function renderArmar(){
   const cont=document.getElementById('armarBody'); if(!cont) return;
   if(!bom || !bom.length){ cont.innerHTML='<div class="empty"><div class="big">🏗️</div>Aún no hay recetas de modelos cargadas.</div>'; return; }
-  // Inventario total por nombre normalizado (suma variantes/duplicados)
-  const invNorm={};
-  tipos.forEach(t=>{
-    const tot=piezas.filter(p=>p.tipo_pieza_id===t.id).reduce((a,p)=>a+Number(p.cantidad||0),0);
-    const k=norm(t.nombre); invNorm[k]=(invNorm[k]||0)+tot;
+  // Inventario separado por MODELO segun el comentario de cada pieza (Precria/Engorde)
+  const nombrePorId={}; tipos.forEach(t=> nombrePorId[t.id]=t.nombre);
+  const invMod={ PRECRIA:{}, ENGORDE:{} };
+  let sinAsignar=0;
+  piezas.forEach(p=>{
+    const nom=nombrePorId[p.tipo_pieza_id]; if(!nom) return;
+    const k=norm(nom), cant=Number(p.cantidad||0), m=modeloDe(p.observacion);
+    if(m){ invMod[m][k]=(invMod[m][k]||0)+cant; } else { sinAsignar+=cant; }
   });
   const orden=['PRECRIA','ENGORDE'];
   const modelos=[...new Set(bom.map(b=>b.modelo))].sort((a,b)=>{
@@ -521,7 +534,7 @@ function renderArmar(){
   let h='';
   modelos.forEach(m=>{
     const items=bom.filter(b=>b.modelo===m).map(b=>{
-      const stock=invNorm[norm(b.pieza)]||0;
+      const stock=(invMod[m] && invMod[m][norm(b.pieza)])||0;
       const req=Number(b.cantidad||1);
       return { pieza:b.pieza, req, stock, alcanza:Math.floor(stock/req) };
     });
@@ -533,9 +546,12 @@ function renderArmar(){
       const cls = i.stock<i.req ? 'falta' : (i.alcanza===completos ? 'limita' : '');
       filas+=`<tr class="${cls}"><td>${esc(i.pieza)}</td><td class="num">${fmt(i.req)}</td><td class="num">${fmt(i.stock)}</td><td class="num">${fmt(i.alcanza)}</td></tr>`;
     });
-    const topaTxt = completos>0
-      ? `Pieza que topa: <b>${topan.map(i=>esc(i.pieza)).join(', ')}</b> (alcanza para ${fmt(completos)})`
-      : `Faltan piezas: <b>${topan.map(i=>esc(i.pieza)).join(', ')}</b>`;
+    const stockModelo = items.reduce((a,i)=>a+i.stock,0);
+    const topaTxt = stockModelo===0
+      ? `Aún no hay piezas registradas para este modelo.`
+      : completos>0
+        ? `Pieza que topa: <b>${topan.map(i=>esc(i.pieza)).join(', ')}</b> (alcanza para ${fmt(completos)})`
+        : `Faltan piezas: <b>${topan.map(i=>esc(i.pieza)).join(', ')}</b>`;
     h+=`<div class="armar-card ${completos===0?'ok0':''}">
       <div class="modelo">🏗️ ${esc(nomModelo)}</div>
       <div class="armar-big"><b>${fmt(completos)}</b><span>alimentador(es) completo(s)</span></div>
@@ -547,7 +563,10 @@ function renderArmar(){
       </details>
     </div>`;
   });
-  cont.innerHTML=h;
+  const aviso = sinAsignar>0
+    ? `<div class="armar-aviso">⚠ Hay <b>${fmt(sinAsignar)}</b> pieza(s) sin modelo marcado (no se cuentan). Al registrarlas, escriba <b>Precría</b> o <b>Engorde</b> en el comentario.</div>`
+    : '';
+  cont.innerHTML = aviso + h;
 }
 
 // ================= CONTENEDORES =================
