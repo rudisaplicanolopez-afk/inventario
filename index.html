@@ -414,7 +414,7 @@ tr:last-child td{ border-bottom:none }
     <label>Nombre / Código del alimentador *</label>
     <input id="uNombre" class="fld" placeholder="Ej: ALM-001">
     <label>MAC (16 dígitos) — identificador</label>
-    <input id="uMac" class="fld" inputmode="numeric" maxlength="19" placeholder="Ej: 1234567890123456">
+    <input id="uMac" class="fld" inputmode="numeric" maxlength="23" placeholder="Ej: 12-34-56-78-90-12-34-56" oninput="formatMac(this)">
     <div class="grid2">
       <div><label>Modelo</label>
         <select id="uModelo" class="fld">
@@ -664,10 +664,10 @@ function renderDespacho(){
   const dl=document.getElementById('lagunasList'); if(dl) dl.innerHTML=lag.map(l=>`<option value="${esc(l)}">`).join('');
   const q=(document.getElementById('uSearch').value||'').toLowerCase();
   let list=unidades.filter(u=> uniFilter==='todos' || u.estado===uniFilter);
-  if(q){ const qn=q.replace(/\s+/g,'');
+  if(q){ const qn=q.replace(/[^a-z0-9]/gi,'').toLowerCase();
     list=list.filter(u=> (u.nombre||'').toLowerCase().includes(q)
       || (u.laguna||'').toLowerCase().includes(q)
-      || (u.mac||'').toLowerCase().replace(/\s+/g,'').includes(qn)); }
+      || (qn && (u.mac||'').replace(/[^a-z0-9]/gi,'').toLowerCase().includes(qn))); }
   if(list.length===0){ cont.innerHTML='<div class="empty"><div class="big">🚚</div>'+(unidades.length? 'Sin resultados':'Aún no hay alimentadores armados.<br>Toque “Nuevo alimentador armado”.')+'</div>'; return; }
   let h='';
   list.forEach(u=>{
@@ -683,6 +683,11 @@ function renderDespacho(){
     </div>`;
   });
   cont.innerHTML=h;
+}
+// Pone guion automatico entre cada 2 numeros del MAC (max 16 digitos)
+function formatMac(input){
+  const d = (input.value||'').replace(/\D/g,'').slice(0,16);
+  input.value = d.replace(/(\d{2})(?=\d)/g,'$1-');
 }
 function openUnidadForm(){
   document.getElementById('uFormTitle').textContent='Nuevo alimentador armado';
