@@ -321,13 +321,31 @@ tr:last-child td{ border-bottom:none }
     <div id="armarBody"></div>
   </section>
 
+  <!-- DESPACHO -->
+  <section id="v-despacho" class="view">
+    <button class="btn" onclick="openUnidadForm()">＋ NUEVO ALIMENTADOR ARMADO</button>
+    <div class="stats" style="margin-top:12px">
+      <div class="stat"><b id="st-armados">0</b><span>En bodega</span></div>
+      <div class="stat"><b id="st-despachados">0</b><span>Despachados</span></div>
+      <div class="stat"><b id="st-unidades">0</b><span>Total</span></div>
+    </div>
+    <input id="uSearch" class="search" placeholder="🔎 Buscar por nombre o laguna…" oninput="renderDespacho()">
+    <div class="flt">
+      <button data-fu="todos" class="on" onclick="setUniFilter('todos')">Todos</button>
+      <button data-fu="Armado" onclick="setUniFilter('Armado')">En bodega</button>
+      <button data-fu="Despachado" onclick="setUniFilter('Despachado')">Despachados</button>
+    </div>
+    <div id="uniList"></div>
+  </section>
+
 </div>
 
 <nav class="tabs">
   <button data-v="v-inv" class="active" onclick="showView('v-inv')"><span class="ic">📊</span>Inventario</button>
-  <button data-v="v-cont" onclick="showView('v-cont')"><span class="ic">🚢</span>Contenedores</button>
+  <button data-v="v-cont" onclick="showView('v-cont')"><span class="ic">🚢</span>Contened.</button>
   <button data-v="v-piezas" onclick="showView('v-piezas')"><span class="ic">🔧</span>Piezas</button>
   <button data-v="v-armar" onclick="showView('v-armar')"><span class="ic">🏗️</span>Armar</button>
+  <button data-v="v-despacho" onclick="showView('v-despacho')"><span class="ic">🚚</span>Despacho</button>
 </nav>
 
 <!-- Modal contenedor form -->
@@ -384,6 +402,52 @@ tr:last-child td{ border-bottom:none }
   </div>
 </div>
 
+<!-- Modal: nuevo/editar alimentador armado -->
+<div id="mUnidad" class="modal">
+  <div class="sheet">
+    <div class="bar"><h3 id="uFormTitle">Nuevo alimentador armado</h3><button class="x" onclick="closeModal('mUnidad')">✕</button></div>
+    <input type="hidden" id="uId">
+    <label>Nombre / Código del alimentador *</label>
+    <input id="uNombre" class="fld" placeholder="Ej: ALM-001">
+    <div class="grid2">
+      <div><label>Modelo</label>
+        <select id="uModelo" class="fld">
+          <option value="PRECRIA">Precría</option>
+          <option value="ENGORDE">Engorde</option>
+        </select>
+      </div>
+      <div><label>Fecha de armado</label><input id="uFechaArm" class="fld" type="date"></div>
+    </div>
+    <label>Observación (opcional)</label>
+    <input id="uObs" class="fld" placeholder="Opcional">
+    <button class="btn" onclick="saveUnidad()">GUARDAR</button>
+  </div>
+</div>
+
+<!-- Modal: detalle + despacho -->
+<div id="mUnidadDet" class="modal">
+  <div class="sheet">
+    <div class="bar"><h3 id="udTitle">Alimentador</h3><button class="x" onclick="closeModal('mUnidadDet')">✕</button></div>
+    <div id="udMeta" style="margin-bottom:14px"></div>
+    <div id="udDespachoForm" class="card" style="margin-bottom:14px">
+      <h2>🚚 Despachar a una laguna</h2>
+      <label>Laguna de destino *</label>
+      <input id="uLaguna" class="fld" list="lagunasList" placeholder="Ej: Laguna 12, Zona 3">
+      <datalist id="lagunasList"></datalist>
+      <div class="grid2">
+        <div><label>Fecha de despacho</label><input id="uFechaDesp" class="fld" type="date"></div>
+        <div><label>Nota (opcional)</label><input id="uNotaDesp" class="fld" placeholder="Opcional"></div>
+      </div>
+      <button class="btn lima" onclick="despacharUnidad()">🚚 DESPACHAR</button>
+    </div>
+    <div class="rowbtns">
+      <button class="btn sm sec" onclick="editUnidad()">✎ Editar</button>
+      <button id="udRevertir" class="btn sm sec" style="display:none" onclick="revertirUnidad()">↩ Regresar a bodega</button>
+      <button class="btn sm danger" onclick="delUnidad()">🗑 Borrar</button>
+    </div>
+  </div>
+</div>
+
 <div id="toast" class="toast"></div>
 
 <script src="supabase.js"></script>
@@ -395,9 +459,11 @@ const TEAM_PIN = "2024";
 const sb = supabase.createClient(SB_URL, SB_KEY);
 
 // ================= STATE =================
-let tipos = [], contenedores = [], piezas = [], bom = [];
+let tipos = [], contenedores = [], piezas = [], bom = [], unidades = [];
 let contFilter = 'todos';
 let currentCont = null;
+let uniFilter = 'todos';
+let currentUni = null;
 
 // ================= TEMA (claro/oscuro) =================
 function aplicarTemaBtn(){
@@ -461,19 +527,20 @@ document.getElementById('pin').addEventListener('keydown',e=>{ if(e.key==='Enter
 async function loadAll(){
   conn(false,'Cargando…');
   try{
-    const [rt,rc,rp,rb] = await Promise.all([
+    const [rt,rc,rp,rb,ru] = await Promise.all([
       sb.from('alim_tipos_pieza').select('*').order('nombre'),
       sb.from('alim_contenedores').select('*').order('created_at',{ascending:false}),
       sb.from('alim_piezas_recibidas').select('*'),
-      sb.from('alim_bom').select('*').order('orden')
+      sb.from('alim_bom').select('*').order('orden'),
+      sb.from('alim_unidades').select('*').order('created_at',{ascending:false})
     ]);
     if(rt.error||rc.error||rp.error) throw (rt.error||rc.error||rp.error);
-    tipos=rt.data; contenedores=rc.data; piezas=rp.data; bom=(rb&&!rb.error)?rb.data:[];
+    tipos=rt.data; contenedores=rc.data; piezas=rp.data; bom=(rb&&!rb.error)?rb.data:[]; unidades=(ru&&!ru.error)?ru.data:[];
     conn(true,'Conectado ✓');
     renderAll();
   }catch(e){ conn(false,'Sin conexión — revise internet'); console.error(e); toast('Error al cargar'); }
 }
-function renderAll(){ renderInv(); renderCont(); renderTipos(); renderDatalist(); renderArmar(); if(currentCont) renderDetail(); }
+function renderAll(){ renderInv(); renderCont(); renderTipos(); renderDatalist(); renderArmar(); renderDespacho(); if(currentCont) renderDetail(); }
 
 // ================= INVENTARIO =================
 function renderInv(){
@@ -569,8 +636,118 @@ function renderArmar(){
   cont.innerHTML = aviso + h;
 }
 
+// ================= DESPACHO (alimentadores armados) =================
+function setUniFilter(f){ uniFilter=f; document.querySelectorAll('.flt button[data-fu]').forEach(b=>b.classList.toggle('on',b.dataset.fu===f)); renderDespacho(); }
+function modeloNombre(m){ return m==='PRECRIA'?'Precría':m==='ENGORDE'?'Engorde':(m||''); }
+function renderDespacho(){
+  const cont=document.getElementById('uniList'); if(!cont) return;
+  const arm=unidades.filter(u=>u.estado!=='Despachado').length;
+  const desp=unidades.filter(u=>u.estado==='Despachado').length;
+  const stA=document.getElementById('st-armados'), stD=document.getElementById('st-despachados'), stT=document.getElementById('st-unidades');
+  if(stA) stA.textContent=arm; if(stD) stD.textContent=desp; if(stT) stT.textContent=unidades.length;
+  // datalist de lagunas ya usadas
+  const lag=[...new Set(unidades.map(u=>u.laguna).filter(Boolean))].sort();
+  const dl=document.getElementById('lagunasList'); if(dl) dl.innerHTML=lag.map(l=>`<option value="${esc(l)}">`).join('');
+  const q=(document.getElementById('uSearch').value||'').toLowerCase();
+  let list=unidades.filter(u=> uniFilter==='todos' || u.estado===uniFilter);
+  if(q) list=list.filter(u=> (u.nombre||'').toLowerCase().includes(q) || (u.laguna||'').toLowerCase().includes(q));
+  if(list.length===0){ cont.innerHTML='<div class="empty"><div class="big">🚚</div>'+(unidades.length? 'Sin resultados':'Aún no hay alimentadores armados.<br>Toque “Nuevo alimentador armado”.')+'</div>'; return; }
+  let h='';
+  list.forEach(u=>{
+    const desp = u.estado==='Despachado';
+    const mCls = u.modelo==='ENGORDE'?'descargado':'recibido';
+    h+=`<div class="cont-card" onclick="openUnidadDet('${u.id}')">
+      <div class="top"><span class="cod">🤖 ${esc(u.nombre)}</span>
+        <span class="badge ${desp?'descargado':'transito'}">${desp?'Despachado':'En bodega'}</span></div>
+      <div class="meta2"><span class="badge ${mCls}" style="font-size:10px">${esc(modeloNombre(u.modelo))}</span>
+        ${desp ? ' &nbsp;📍 <b style="color:var(--accent)">'+esc(u.laguna||'')+'</b>'+(u.fecha_despacho?' · '+fecha(u.fecha_despacho):'') : (u.fecha_armado?' &nbsp;🛠 Armado '+fecha(u.fecha_armado):'')}
+        ${u.observacion?'<br>'+esc(u.observacion):''}</div>
+    </div>`;
+  });
+  cont.innerHTML=h;
+}
+function openUnidadForm(){
+  document.getElementById('uFormTitle').textContent='Nuevo alimentador armado';
+  document.getElementById('uId').value='';
+  document.getElementById('uNombre').value='';
+  document.getElementById('uModelo').value='PRECRIA';
+  document.getElementById('uFechaArm').value=new Date().toISOString().slice(0,10);
+  document.getElementById('uObs').value='';
+  openModal('mUnidad');
+}
+function editUnidad(){
+  const u=currentUni; if(!u) return;
+  document.getElementById('uFormTitle').textContent='Editar alimentador';
+  document.getElementById('uId').value=u.id;
+  document.getElementById('uNombre').value=u.nombre;
+  document.getElementById('uModelo').value=u.modelo||'PRECRIA';
+  document.getElementById('uFechaArm').value=u.fecha_armado||'';
+  document.getElementById('uObs').value=u.observacion||'';
+  closeModal('mUnidadDet'); openModal('mUnidad');
+}
+async function saveUnidad(){
+  const nombre=document.getElementById('uNombre').value.trim();
+  if(!nombre){ toast('Escriba el nombre'); return; }
+  const rec={ nombre, modelo:document.getElementById('uModelo').value,
+              fecha_armado:document.getElementById('uFechaArm').value||null,
+              observacion:document.getElementById('uObs').value.trim()||null };
+  const id=document.getElementById('uId').value;
+  let res;
+  if(id) res=await sb.from('alim_unidades').update(rec).eq('id',id).select().single();
+  else   res=await sb.from('alim_unidades').insert(rec).select().single();
+  if(res.error){ toast(res.error.message.includes('duplicate')?'Ese nombre ya existe':'Error al guardar'); return; }
+  closeModal('mUnidad'); toast(id?'Alimentador actualizado':'Alimentador registrado'); await loadAll();
+}
+function openUnidadDet(id){ currentUni=unidades.find(u=>u.id===id); if(!currentUni) return; renderUnidadDet(); openModal('mUnidadDet'); }
+function renderUnidadDet(){
+  const u=currentUni; if(!u) return;
+  document.getElementById('udTitle').textContent='🤖 '+u.nombre;
+  const desp=u.estado==='Despachado';
+  const mCls=u.modelo==='ENGORDE'?'descargado':'recibido';
+  document.getElementById('udMeta').innerHTML=
+    `<span class="badge ${mCls}">${esc(modeloNombre(u.modelo))}</span>
+     <span class="badge ${desp?'descargado':'transito'}">${desp?'Despachado':'En bodega'}</span>
+     ${u.fecha_armado?'<br><span class="muted" style="font-size:13px">🛠 Armado: '+fecha(u.fecha_armado)+'</span>':''}
+     ${desp?'<br><span style="font-size:14px">📍 Despachado a <b>'+esc(u.laguna||'')+'</b>'+(u.fecha_despacho?' el '+fecha(u.fecha_despacho):'')+'</span>':''}
+     ${u.observacion?'<br><span class="muted" style="font-size:13px">'+esc(u.observacion)+'</span>':''}`;
+  // Form de despacho solo si esta en bodega
+  document.getElementById('udDespachoForm').style.display = desp ? 'none' : 'block';
+  document.getElementById('udRevertir').style.display = desp ? 'inline-block' : 'none';
+  if(!desp){
+    document.getElementById('uLaguna').value='';
+    document.getElementById('uFechaDesp').value=new Date().toISOString().slice(0,10);
+    document.getElementById('uNotaDesp').value='';
+  }
+}
+async function despacharUnidad(){
+  const u=currentUni; if(!u) return;
+  const laguna=document.getElementById('uLaguna').value.trim();
+  if(!laguna){ toast('Escriba la laguna de destino'); return; }
+  const nota=document.getElementById('uNotaDesp').value.trim();
+  const rec={ estado:'Despachado', laguna,
+              fecha_despacho:document.getElementById('uFechaDesp').value||new Date().toISOString().slice(0,10),
+              observacion: nota || u.observacion || null };
+  const {error}=await sb.from('alim_unidades').update(rec).eq('id',u.id);
+  if(error){ toast('Error al despachar'); return; }
+  closeModal('mUnidadDet'); toast('Despachado a '+laguna+' ✓'); loadAll();
+}
+async function revertirUnidad(){
+  const u=currentUni; if(!u) return;
+  if(!confirm('¿Regresar '+u.nombre+' a bodega? (se quita el despacho)')) return;
+  const {error}=await sb.from('alim_unidades').update({estado:'Armado', laguna:null, fecha_despacho:null}).eq('id',u.id);
+  if(error){ toast('Error'); return; }
+  closeModal('mUnidadDet'); toast('Regresado a bodega'); loadAll();
+}
+async function delUnidad(){
+  const u=currentUni; if(!u) return;
+  if(!confirm('¿Borrar el alimentador '+u.nombre+'?')) return;
+  const {error}=await sb.from('alim_unidades').delete().eq('id',u.id);
+  if(error){ toast('Error al borrar'); return; }
+  closeModal('mUnidadDet'); currentUni=null; toast('Alimentador borrado'); loadAll();
+}
+
 // ================= CONTENEDORES =================
-function setContFilter(f){ contFilter=f; document.querySelectorAll('.flt button').forEach(b=>b.classList.toggle('on',b.dataset.f===f)); renderCont(); }
+function setContFilter(f){ contFilter=f; document.querySelectorAll('.flt button[data-f]').forEach(b=>b.classList.toggle('on',b.dataset.f===f)); renderCont(); }
 function renderCont(){
   let list=contenedores;
   if(contFilter!=='todos') list=list.filter(c=>c.estado===contFilter);
@@ -786,7 +963,7 @@ async function delTipo(id,nombre){
 function showView(v){ document.querySelectorAll('.view').forEach(s=>s.classList.toggle('active',s.id===v));
   document.querySelectorAll('.tabs button').forEach(b=>b.classList.toggle('active',b.dataset.v===v)); }
 function openModal(id){ document.getElementById(id).classList.add('open'); }
-function closeModal(id){ document.getElementById(id).classList.remove('open'); if(id==='mDetail') currentCont=null; }
+function closeModal(id){ document.getElementById(id).classList.remove('open'); if(id==='mDetail') currentCont=null; if(id==='mUnidadDet') currentUni=null; }
 function download(name,csv){ const b=new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8'});
   const u=URL.createObjectURL(b); const a=document.createElement('a'); a.href=u; a.download=name; a.click(); URL.revokeObjectURL(u); }
 
@@ -796,6 +973,7 @@ sb.channel('alim-live')
   .on('postgres_changes',{event:'*',schema:'public',table:'alim_tipos_pieza'},()=>loadAll())
   .on('postgres_changes',{event:'*',schema:'public',table:'alim_piezas_recibidas'},()=>loadAll())
   .on('postgres_changes',{event:'*',schema:'public',table:'alim_bom'},()=>loadAll())
+  .on('postgres_changes',{event:'*',schema:'public',table:'alim_unidades'},()=>loadAll())
   .subscribe();
 
 // ================= SERVICE WORKER =================
