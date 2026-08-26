@@ -331,7 +331,7 @@ tr:last-child td{ border-bottom:none }
       <div class="stat"><b id="st-despachados">0</b><span>Despachados</span></div>
       <div class="stat"><b id="st-unidades">0</b><span>Total</span></div>
     </div>
-    <input id="uSearch" class="search" placeholder="🔎 Buscar por nombre o laguna…" oninput="renderDespacho()">
+    <input id="uSearch" class="search" placeholder="🔎 Buscar por nombre, MAC o laguna…" oninput="renderDespacho()">
     <div class="flt">
       <button data-fu="todos" class="on" onclick="setUniFilter('todos')">Todos</button>
       <button data-fu="Armado" onclick="setUniFilter('Armado')">En bodega</button>
@@ -413,6 +413,8 @@ tr:last-child td{ border-bottom:none }
     <input type="hidden" id="uId">
     <label>Nombre / Código del alimentador *</label>
     <input id="uNombre" class="fld" placeholder="Ej: ALM-001">
+    <label>MAC (16 dígitos) — identificador</label>
+    <input id="uMac" class="fld" inputmode="numeric" maxlength="19" placeholder="Ej: 1234567890123456">
     <div class="grid2">
       <div><label>Modelo</label>
         <select id="uModelo" class="fld">
@@ -662,7 +664,10 @@ function renderDespacho(){
   const dl=document.getElementById('lagunasList'); if(dl) dl.innerHTML=lag.map(l=>`<option value="${esc(l)}">`).join('');
   const q=(document.getElementById('uSearch').value||'').toLowerCase();
   let list=unidades.filter(u=> uniFilter==='todos' || u.estado===uniFilter);
-  if(q) list=list.filter(u=> (u.nombre||'').toLowerCase().includes(q) || (u.laguna||'').toLowerCase().includes(q));
+  if(q){ const qn=q.replace(/\s+/g,'');
+    list=list.filter(u=> (u.nombre||'').toLowerCase().includes(q)
+      || (u.laguna||'').toLowerCase().includes(q)
+      || (u.mac||'').toLowerCase().replace(/\s+/g,'').includes(qn)); }
   if(list.length===0){ cont.innerHTML='<div class="empty"><div class="big">🚚</div>'+(unidades.length? 'Sin resultados':'Aún no hay alimentadores armados.<br>Toque “Nuevo alimentador armado”.')+'</div>'; return; }
   let h='';
   list.forEach(u=>{
@@ -673,6 +678,7 @@ function renderDespacho(){
         <span class="badge ${desp?'descargado':'transito'}">${desp?'Despachado':'En bodega'}</span></div>
       <div class="meta2"><span class="badge ${mCls}" style="font-size:10px">${esc(modeloNombre(u.modelo))}</span>
         ${desp ? ' &nbsp;📍 <b style="color:var(--accent)">'+esc(u.laguna||'')+'</b>'+(u.fecha_despacho?' · '+fecha(u.fecha_despacho):'') : (u.fecha_armado?' &nbsp;🛠 Armado '+fecha(u.fecha_armado):'')}
+        ${u.mac?'<br>🔖 MAC: '+esc(u.mac):''}
         ${u.observacion?'<br>'+esc(u.observacion):''}</div>
     </div>`;
   });
@@ -682,6 +688,7 @@ function openUnidadForm(){
   document.getElementById('uFormTitle').textContent='Nuevo alimentador armado';
   document.getElementById('uId').value='';
   document.getElementById('uNombre').value='';
+  document.getElementById('uMac').value='';
   document.getElementById('uModelo').value='PRECRIA';
   document.getElementById('uFechaArm').value=new Date().toISOString().slice(0,10);
   document.getElementById('uObs').value='';
@@ -692,6 +699,7 @@ function editUnidad(){
   document.getElementById('uFormTitle').textContent='Editar alimentador';
   document.getElementById('uId').value=u.id;
   document.getElementById('uNombre').value=u.nombre;
+  document.getElementById('uMac').value=u.mac||'';
   document.getElementById('uModelo').value=u.modelo||'PRECRIA';
   document.getElementById('uFechaArm').value=u.fecha_armado||'';
   document.getElementById('uObs').value=u.observacion||'';
@@ -700,7 +708,8 @@ function editUnidad(){
 async function saveUnidad(){
   const nombre=document.getElementById('uNombre').value.trim();
   if(!nombre){ toast('Escriba el nombre'); return; }
-  const rec={ nombre, modelo:document.getElementById('uModelo').value,
+  const rec={ nombre, mac:document.getElementById('uMac').value.trim()||null,
+              modelo:document.getElementById('uModelo').value,
               fecha_armado:document.getElementById('uFechaArm').value||null,
               observacion:document.getElementById('uObs').value.trim()||null };
   const id=document.getElementById('uId').value;
@@ -719,6 +728,7 @@ function renderUnidadDet(){
   document.getElementById('udMeta').innerHTML=
     `<span class="badge ${mCls}">${esc(modeloNombre(u.modelo))}</span>
      <span class="badge ${desp?'descargado':'transito'}">${desp?'Despachado':'En bodega'}</span>
+     ${u.mac?'<br><span style="font-size:13px">🔖 MAC: <b>'+esc(u.mac)+'</b></span>':''}
      ${u.fecha_armado?'<br><span class="muted" style="font-size:13px">🛠 Armado: '+fecha(u.fecha_armado)+'</span>':''}
      ${desp?'<br><span style="font-size:14px">📍 Despachado a <b>'+esc(u.laguna||'')+'</b>'+(u.fecha_despacho?' el '+fecha(u.fecha_despacho):'')+'</span>':''}
      ${u.observacion?'<br><span class="muted" style="font-size:13px">'+esc(u.observacion)+'</span>':''}`;
