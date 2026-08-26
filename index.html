@@ -183,6 +183,8 @@ tr:last-child td{ border-bottom:none }
 .armar-big{ display:flex; align-items:baseline; gap:10px; margin:6px 0 4px }
 .armar-big b{ font-size:46px; font-weight:900; line-height:1; color:var(--accent) }
 .armar-big span{ font-size:15px; font-weight:700; color:var(--texto) }
+.armar-desp{ font-size:12.5px; font-weight:700; color:var(--lima-d); background:rgba(132,204,22,.14); border:1px solid rgba(132,204,22,.3); border-radius:9px; padding:6px 10px; margin:0 0 8px; display:inline-block }
+[data-theme="dark"] .armar-desp{ color:#a3e635 }
 .armar-topa{ font-size:13px; color:var(--texto); background:var(--chip-bg); border:1px solid var(--borde); border-radius:10px; padding:9px 12px; margin-top:8px }
 .armar-topa b{ color:var(--danger) }
 .armar-card.ok0 .armar-big b{ color:var(--danger) }
@@ -316,8 +318,8 @@ tr:last-child td{ border-bottom:none }
 
   <!-- ARMAR -->
   <section id="v-armar" class="view">
-    <div class="armar-intro">¿Cuántos alimentadores completos salen con lo que hay registrado?</div>
-    <div class="armar-sub">Cada modelo cuenta solo las piezas marcadas <b>Precría</b> o <b>Engorde</b> en el comentario.</div>
+    <div class="armar-intro">¿Cuántos alimentadores más puede armar con las piezas disponibles?</div>
+    <div class="armar-sub">Cuenta las piezas marcadas <b>Precría</b>/<b>Engorde</b> y <b>resta los ya despachados</b>. "Disp." = disponible.</div>
     <div id="armarBody"></div>
   </section>
 
@@ -599,11 +601,17 @@ function renderArmar(){
     return (ia<0?99:ia)-(ib<0?99:ib) || a.localeCompare(b);
   });
   let h='';
+  // Alimentadores YA DESPACHADOS por modelo (sus piezas ya se usaron -> se restan)
+  const despByModel={};
+  unidades.forEach(u=>{ if(u.estado==='Despachado' && u.modelo){ despByModel[u.modelo]=(despByModel[u.modelo]||0)+1; } });
   modelos.forEach(m=>{
+    const despachados = despByModel[m]||0;
     const items=bom.filter(b=>b.modelo===m).map(b=>{
-      const stock=(invMod[m] && invMod[m][norm(b.pieza)])||0;
       const req=Number(b.cantidad||1);
-      return { pieza:b.pieza, req, stock, alcanza:Math.floor(stock/req) };
+      const recibido=(invMod[m] && invMod[m][norm(b.pieza)])||0;
+      const usado=despachados*req;                 // piezas ya usadas en despachados
+      const stock=Math.max(0, recibido - usado);   // disponible tras despachos
+      return { pieza:b.pieza, req, recibido, stock, alcanza:Math.floor(stock/req) };
     });
     const completos=items.length? Math.min(...items.map(i=>i.alcanza)) : 0;
     const topan=items.filter(i=>i.alcanza===completos);
@@ -613,19 +621,21 @@ function renderArmar(){
       const cls = i.stock<i.req ? 'falta' : (i.alcanza===completos ? 'limita' : '');
       filas+=`<tr class="${cls}"><td>${esc(i.pieza)}</td><td class="num">${fmt(i.req)}</td><td class="num">${fmt(i.stock)}</td><td class="num">${fmt(i.alcanza)}</td></tr>`;
     });
-    const stockModelo = items.reduce((a,i)=>a+i.stock,0);
-    const topaTxt = stockModelo===0
+    const recibidoModelo = items.reduce((a,i)=>a+i.recibido,0);
+    const topaTxt = recibidoModelo===0
       ? `Aún no hay piezas registradas para este modelo.`
       : completos>0
-        ? `Pieza que topa: <b>${topan.map(i=>esc(i.pieza)).join(', ')}</b> (alcanza para ${fmt(completos)})`
-        : `Faltan piezas: <b>${topan.map(i=>esc(i.pieza)).join(', ')}</b>`;
+        ? `Pieza que topa: <b>${topan.map(i=>esc(i.pieza)).join(', ')}</b>`
+        : `Ya no alcanza para más. Se acaba: <b>${topan.map(i=>esc(i.pieza)).join(', ')}</b>`;
+    const despLine = despachados>0 ? `<div class="armar-desp">🚚 ${fmt(despachados)} ya despachado(s) — sus piezas ya se restaron</div>` : '';
     h+=`<div class="armar-card ${completos===0?'ok0':''}">
       <div class="modelo">🏗️ ${esc(nomModelo)}</div>
-      <div class="armar-big"><b>${fmt(completos)}</b><span>alimentador(es) completo(s)</span></div>
+      <div class="armar-big"><b>${fmt(completos)}</b><span>que aún puede armar</span></div>
+      ${despLine}
       <div class="armar-topa">${topaTxt}</div>
       <details class="armar-det">
         <summary>Ver detalle por pieza ▾</summary>
-        <table><thead><tr><th>Pieza</th><th class="num">Lleva</th><th class="num">Hay</th><th class="num">Alcanza</th></tr></thead>
+        <table><thead><tr><th>Pieza</th><th class="num">Lleva</th><th class="num">Disp.</th><th class="num">Alcanza</th></tr></thead>
         <tbody>${filas}</tbody></table>
       </details>
     </div>`;
