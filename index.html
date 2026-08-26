@@ -384,8 +384,10 @@ tr:last-child td{ border-bottom:none }
     <div class="card" style="margin-bottom:14px">
       <h2>📷 Fotos del contenedor</h2>
       <div id="dFotos" class="fotos-grid"></div>
-      <input type="file" id="fotoInputAntes" accept="image/*" capture="environment" hidden onchange="onFotoSel('antes',this)">
-      <input type="file" id="fotoInputDespues" accept="image/*" capture="environment" hidden onchange="onFotoSel('despues',this)">
+      <input type="file" id="camAntes" accept="image/*" capture="environment" hidden onchange="onFotoSel('antes',this)">
+      <input type="file" id="galAntes" accept="image/*" hidden onchange="onFotoSel('antes',this)">
+      <input type="file" id="camDespues" accept="image/*" capture="environment" hidden onchange="onFotoSel('despues',this)">
+      <input type="file" id="galDespues" accept="image/*" hidden onchange="onFotoSel('despues',this)">
     </div>
     <div class="card" style="margin-bottom:14px">
       <h2>Agregar pieza a este contenedor</h2>
@@ -849,13 +851,14 @@ function slotFoto(tipo,label,url){
   const vista = url
     ? `<img class="foto-thumb" src="${esc(url)}" onclick="window.open('${esc(url)}','_blank')" alt="${esc(label)}">`
     : `<div class="foto-empty">📷</div>`;
-  const btns = url
-    ? `<button onclick="pickFoto('${tipo}')">🔄 Cambiar</button><button onclick="borrarFoto('${tipo}')" title="Quitar">🗑</button>`
-    : `<button onclick="pickFoto('${tipo}')">📷 Tomar foto</button>`;
+  const btns = `<button onclick="pickFoto('${tipo}','cam')">📷 Cámara</button>`
+    + `<button onclick="pickFoto('${tipo}','gal')">🖼️ Galería</button>`
+    + (url ? `<button onclick="borrarFoto('${tipo}')" title="Quitar">🗑</button>` : '');
   return `<div class="foto-slot" id="slot-${tipo}"><div class="cap">${label}</div>${vista}<div class="act">${btns}</div></div>`;
 }
-function pickFoto(tipo){
-  const inp=document.getElementById(tipo==='antes'?'fotoInputAntes':'fotoInputDespues');
+function pickFoto(tipo, src){
+  const pre = (src==='gal') ? 'gal' : 'cam';
+  const inp=document.getElementById(pre + (tipo==='antes'?'Antes':'Despues'));
   if(inp) inp.click();
 }
 async function onFotoSel(tipo, input){
