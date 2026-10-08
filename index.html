@@ -262,6 +262,7 @@ tr:last-child td{ border-bottom:none }
     <div class="hactions">
       <button id="btnInstalar" class="hbtn" style="display:none" onclick="instalarApp()">📲 Instalar app</button>
       <button id="btnTema" class="hbtn" onclick="toggleTema()">🌙 Oscuro</button>
+      <button class="hbtn" onclick="openModal('mReportes')">📥 Reportes</button>
       <button class="hbtn" onclick="loadAll()">⟳ Actualizar</button>
     </div>
   </div>
@@ -454,6 +455,18 @@ tr:last-child td{ border-bottom:none }
   </div>
 </div>
 
+<!-- Modal: Reportes / Respaldos (Excel) -->
+<div id="mReportes" class="modal">
+  <div class="sheet">
+    <div class="bar"><h3>📥 Reportes y respaldos</h3><button class="x" onclick="closeModal('mReportes')">✕</button></div>
+    <p class="hint" style="margin-top:-4px">Descargue el historial en Excel (CSV) para guardar de respaldo. Cada archivo lleva la fecha de hoy.</p>
+    <button class="btn" style="margin-bottom:10px" onclick="exportRecepcion()">📦 Historial de recepción<br><span style="font-weight:600;font-size:12px;opacity:.85">Cada pieza que trajo cada contenedor (con fecha y modelo)</span></button>
+    <button class="btn blue" style="margin-bottom:10px;background:linear-gradient(135deg,#2d9cdb,#1b6fa8);color:#04263b" onclick="exportDespachos()">🚚 Alimentadores y despachos<br><span style="font-weight:600;font-size:12px;opacity:.85">Nombre, MAC, modelo, estado y a qué laguna se despachó</span></button>
+    <button class="btn sec" style="margin-bottom:10px" onclick="exportInv()">📊 Inventario actual (en bodega)<br><span style="font-weight:600;font-size:12px;opacity:.8">Recibido, usado en despachos y lo que queda</span></button>
+    <button class="btn sec" style="margin-bottom:4px" onclick="exportContenedores()">🚢 Lista de contenedores<br><span style="font-weight:600;font-size:12px;opacity:.8">Resumen: código, fecha, estado y total de piezas</span></button>
+  </div>
+</div>
+
 <div id="toast" class="toast"></div>
 
 <script src="supabase.js"></script>
@@ -583,7 +596,8 @@ function exportInv(){
   let csv='Pieza,Unidad,Recibido,Usado en despachados,En bodega\n';
   tipos.forEach(t=>{ const rec=totals[t.id]||0; const us=consumo[norm(t.nombre)]||0; const disp=Math.max(0,rec-us);
     csv+=`"${t.nombre}","${t.unidad||''}",${rec},${us},${disp}\n`; });
-  download('inventario.csv',csv);
+  download('inventario_'+hoyISO()+'.csv',csv);
+  closeModal('mReportes'); toast('Descargado ✓');
 }
 
 // ================= ARMAR (alimentadores completos) =================
@@ -984,10 +998,12 @@ function renderTipos(){
   document.getElementById('tpCount').textContent=tipos.length;
   if(tipos.length===0){ document.getElementById('tipoList').innerHTML='<div class="empty muted">Sin piezas aún</div>'; return; }
   const usados={}; piezas.forEach(p=>usados[p.tipo_pieza_id]=(usados[p.tipo_pieza_id]||0)+Number(p.cantidad||0));
+  const consumo=consumoDespachados();
   let h='';
   tipos.forEach(t=>{
+    const bodega=Math.max(0,(usados[t.id]||0)-(consumo[norm(t.nombre)]||0));
     h+=`<div class="line-item">
-      <div><div class="nm">${esc(t.nombre)}</div><div class="ob">${esc(t.unidad||'')}${t.categoria?' · '+esc(t.categoria):''} · en inventario: ${fmt(usados[t.id]||0)}</div></div>
+      <div><div class="nm">${esc(t.nombre)}</div><div class="ob">${esc(t.unidad||'')}${t.categoria?' · '+esc(t.categoria):''} · en bodega: ${fmt(bodega)}</div></div>
       <button class="x" style="width:30px;height:30px;font-size:14px" onclick="delTipo('${t.id}','${esc(t.nombre).replace(/'/g,'')}')">✕</button>
     </div>`;
   });
@@ -1009,6 +1025,37 @@ function openModal(id){ document.getElementById(id).classList.add('open'); }
 function closeModal(id){ document.getElementById(id).classList.remove('open'); if(id==='mDetail') currentCont=null; if(id==='mUnidadDet') currentUni=null; }
 function download(name,csv){ const b=new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8'});
   const u=URL.createObjectURL(b); const a=document.createElement('a'); a.href=u; a.download=name; a.click(); URL.revokeObjectURL(u); }
+function hoyISO(){ return new Date().toISOString().slice(0,10); }
+function csvCell(v){ return '"'+String(v==null?'':v).replace(/"/g,'""')+'"'; }
+
+// ===== Reportes (Excel/CSV) =====
+function exportRecepcion(){
+  // cada pieza recibida por contenedor, linea por linea
+  const contById={}; contenedores.forEach(c=>contById[c.id]=c);
+  const filas=piezas.map(p=>{ const c=contById[p.contenedor_id]||{}; return {
+    cod:c.codigo||'', fll:c.fecha_llegada||'', est:c.estado||'',
+    pieza:tipoNombre(p.tipo_pieza_id), cant:p.cantidad, modelo:p.observacion||'' };
+  }).sort((a,b)=> (a.cod||'').localeCompare(b.cod||'') || a.pieza.localeCompare(b.pieza));
+  let csv='Contenedor,Fecha llegada,Estado,Pieza,Cantidad,Modelo/Comentario\n';
+  filas.forEach(f=>{ csv+=[csvCell(f.cod),csvCell(f.fll),csvCell(f.est),csvCell(f.pieza),f.cant,csvCell(f.modelo)].join(',')+'\n'; });
+  download('recepcion_'+hoyISO()+'.csv',csv);
+  closeModal('mReportes'); toast('Descargado ✓');
+}
+function exportDespachos(){
+  let csv='Alimentador,MAC,Modelo,Estado,Laguna,Fecha armado,Fecha despacho,Observacion\n';
+  unidades.forEach(u=>{ csv+=[csvCell(u.nombre),csvCell(u.mac||''),csvCell(modeloNombre(u.modelo)),csvCell(u.estado),
+    csvCell(u.laguna||''),csvCell(u.fecha_armado||''),csvCell(u.fecha_despacho||''),csvCell(u.observacion||'')].join(',')+'\n'; });
+  download('alimentadores_despachos_'+hoyISO()+'.csv',csv);
+  closeModal('mReportes'); toast('Descargado ✓');
+}
+function exportContenedores(){
+  let csv='Contenedor,Fecha llegada,Estado,Tipos de pieza,Total piezas,Descripcion\n';
+  contenedores.forEach(c=>{ const ls=piezas.filter(p=>p.contenedor_id===c.id);
+    const tot=ls.reduce((a,p)=>a+Number(p.cantidad||0),0);
+    csv+=[csvCell(c.codigo),csvCell(c.fecha_llegada||''),csvCell(c.estado),ls.length,tot,csvCell(c.descripcion||'')].join(',')+'\n'; });
+  download('contenedores_'+hoyISO()+'.csv',csv);
+  closeModal('mReportes'); toast('Descargado ✓');
+}
 
 // ================= REALTIME =================
 sb.channel('alim-live')
