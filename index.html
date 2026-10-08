@@ -549,26 +549,41 @@ async function loadAll(){
 function renderAll(){ renderInv(); renderCont(); renderTipos(); renderDatalist(); renderArmar(); renderDespacho(); if(currentCont) renderDetail(); }
 
 // ================= INVENTARIO =================
+function consumoDespachados(){
+  // piezas usadas por alimentadores YA DESPACHADOS (ya no estan en bodega), por nombre normalizado
+  const despByModel={};
+  unidades.forEach(u=>{ if(u.estado==='Despachado' && u.modelo){ despByModel[u.modelo]=(despByModel[u.modelo]||0)+1; } });
+  const consumo={};
+  bom.forEach(b=>{ const dc=despByModel[b.modelo]||0; if(dc>0){ const k=norm(b.pieza); consumo[k]=(consumo[k]||0)+dc*Number(b.cantidad||0); } });
+  consumo.__hay = Object.keys(despByModel).length>0;
+  return consumo;
+}
 function renderInv(){
   const q=(document.getElementById('invSearch').value||'').toLowerCase();
   const totals={}; piezas.forEach(p=>{ totals[p.tipo_pieza_id]=(totals[p.tipo_pieza_id]||0)+Number(p.cantidad||0); });
-  const rows=tipos.map(t=>({nombre:t.nombre,unidad:t.unidad,cat:t.categoria,total:totals[t.id]||0}))
-                  .filter(r=>r.nombre.toLowerCase().includes(q))
+  const consumo=consumoDespachados();
+  // disponible en bodega = recibido - usado por despachados
+  const avail=tipos.map(t=>{ const rec=totals[t.id]||0; const disp=Math.max(0, rec-(consumo[norm(t.nombre)]||0));
+      return {nombre:t.nombre,unidad:t.unidad,cat:t.categoria,total:disp}; });
+  const totalPiezas=avail.reduce((a,r)=>a+r.total,0);
+  const rows=avail.filter(r=>r.nombre.toLowerCase().includes(q))
                   .sort((a,b)=>b.total-a.total || a.nombre.localeCompare(b.nombre));
-  const totalPiezas=Object.values(totals).reduce((a,b)=>a+b,0);
   document.getElementById('st-tipos').textContent=tipos.length;
   document.getElementById('st-piezas').textContent=fmt(totalPiezas);
   document.getElementById('st-cont').textContent=contenedores.length;
   if(rows.length===0){ document.getElementById('invTable').innerHTML='<div class="empty"><div class="big">📦</div>'+(tipos.length?'Sin resultados':'Aún no hay piezas registradas.<br>Cree un contenedor y agréguele piezas.')+'</div>'; return; }
-  let h='<table><thead><tr><th>Pieza</th><th class="num">Total</th></tr></thead><tbody>';
+  const note = consumo.__hay ? '<div class="hint" style="margin:-2px 0 8px">✓ Ya se restaron las piezas de los alimentadores despachados.</div>' : '';
+  let h='<table><thead><tr><th>Pieza</th><th class="num">En bodega</th></tr></thead><tbody>';
   rows.forEach(r=>{ h+=`<tr><td><b>${esc(r.nombre)}</b>${r.cat?`<br><span class="muted" style="font-size:12px">${esc(r.cat)}</span>`:''}</td><td class="num">${fmt(r.total)} <span class="muted" style="font-weight:400;font-size:12px">${esc(r.unidad||'')}</span></td></tr>`; });
-  h+='</tbody></table>'; document.getElementById('invTable').innerHTML=h;
+  h+='</tbody></table>'; document.getElementById('invTable').innerHTML=note+h;
 }
 function exportInv(){
   const totals={}; piezas.forEach(p=>{ totals[p.tipo_pieza_id]=(totals[p.tipo_pieza_id]||0)+Number(p.cantidad||0); });
-  let csv='Pieza,Unidad,Categoria,Total\n';
-  tipos.forEach(t=>{ csv+=`"${t.nombre}","${t.unidad||''}","${t.categoria||''}",${totals[t.id]||0}\n`; });
-  download('inventario_total.csv',csv);
+  const consumo=consumoDespachados();
+  let csv='Pieza,Unidad,Recibido,Usado en despachados,En bodega\n';
+  tipos.forEach(t=>{ const rec=totals[t.id]||0; const us=consumo[norm(t.nombre)]||0; const disp=Math.max(0,rec-us);
+    csv+=`"${t.nombre}","${t.unidad||''}",${rec},${us},${disp}\n`; });
+  download('inventario.csv',csv);
 }
 
 // ================= ARMAR (alimentadores completos) =================
