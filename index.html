@@ -243,7 +243,8 @@ tr:last-child td{ border-bottom:none }
   <div class="box">
     <div class="lg"><img src="icon-192.png" alt=""></div>
     <h1>INVENTARIO ALIMENTADORES</h1>
-    <p>GMSB · Ingrese la clave del equipo</p>
+    <p>GMSB · Ingrese la clave y su nombre</p>
+    <input id="opNombre" class="fld" placeholder="SU NOMBRE" style="text-align:center;font-size:17px;margin-bottom:10px">
     <input id="pin" class="fld" type="password" inputmode="numeric" placeholder="CLAVE" style="text-align:center;font-size:22px;letter-spacing:6px">
     <button class="btn" onclick="checkPin()">ENTRAR</button>
     <p id="pinErr" style="color:var(--danger);margin-top:12px;display:none">Clave incorrecta</p>
@@ -261,6 +262,7 @@ tr:last-child td{ border-bottom:none }
     </div>
     <div class="hactions">
       <button id="btnInstalar" class="hbtn" style="display:none" onclick="instalarApp()">📲 Instalar app</button>
+      <button id="opChip" class="hbtn" onclick="cambiarOperador()" title="Cambiar su nombre">👤 …</button>
       <button id="btnTema" class="hbtn" onclick="toggleTema()">🌙 Oscuro</button>
       <button class="hbtn" onclick="openModal('mReportes')">📥 Reportes</button>
       <button class="hbtn" onclick="loadAll()">⟳ Actualizar</button>
@@ -533,14 +535,23 @@ function fecha(d){ if(!d) return ''; const p=d.split('-'); return p.length===3? 
 function tipoNombre(id){ const t=tipos.find(x=>x.id===id); return t?t.nombre:'(pieza)'; }
 function tipoUnidad(id){ const t=tipos.find(x=>x.id===id); return t?t.unidad:''; }
 
-// ================= GATE =================
-if(sessionStorage.getItem('alim_ok')==='1'){ document.getElementById('gate').style.display='none'; }
+// ================= GATE + OPERADOR =================
+function operador(){ try{ return (localStorage.getItem('alim_operador')||'').trim(); }catch(e){ return ''; } }
+function setOperador(n){ try{ localStorage.setItem('alim_operador', n); }catch(e){} actualizarChipOperador(); }
+function actualizarChipOperador(){ const c=document.getElementById('opChip'); if(c) c.textContent='👤 '+(operador()||'Sin nombre'); }
+function cambiarOperador(){ const n=prompt('¿Cuál es su nombre? (se usa para saber quién hace cada movimiento)', operador()); if(n!==null && n.trim()){ setOperador(n.trim()); } }
+// prefill nombre guardado en la pantalla de clave
+try{ const g=document.getElementById('opNombre'); if(g) g.value=operador(); }catch(e){}
+if(sessionStorage.getItem('alim_ok')==='1'){ document.getElementById('gate').style.display='none'; if(!operador()) setTimeout(cambiarOperador,300); }
 function checkPin(){
   const v=document.getElementById('pin').value.trim();
-  if(v===TEAM_PIN){ sessionStorage.setItem('alim_ok','1'); document.getElementById('gate').style.display='none'; }
-  else { document.getElementById('pinErr').style.display='block'; }
+  const nom=document.getElementById('opNombre').value.trim();
+  if(!nom){ document.getElementById('pinErr').textContent='Escriba su nombre'; document.getElementById('pinErr').style.display='block'; return; }
+  if(v===TEAM_PIN){ setOperador(nom); sessionStorage.setItem('alim_ok','1'); document.getElementById('gate').style.display='none'; }
+  else { document.getElementById('pinErr').textContent='Clave incorrecta'; document.getElementById('pinErr').style.display='block'; }
 }
 document.getElementById('pin').addEventListener('keydown',e=>{ if(e.key==='Enter') checkPin(); });
+actualizarChipOperador();
 
 // ================= LOAD =================
 async function loadAll(){
@@ -749,7 +760,7 @@ async function saveUnidad(){
   const id=document.getElementById('uId').value;
   let res;
   if(id) res=await sb.from('alim_unidades').update(rec).eq('id',id).select().single();
-  else   res=await sb.from('alim_unidades').insert(rec).select().single();
+  else { rec.responsable_armado=operador()||null; res=await sb.from('alim_unidades').insert(rec).select().single(); }
   if(res.error){ toast(res.error.message.includes('duplicate')?'Ese nombre ya existe':'Error al guardar'); return; }
   closeModal('mUnidad'); toast(id?'Alimentador actualizado':'Alimentador registrado'); await loadAll();
 }
@@ -763,8 +774,8 @@ function renderUnidadDet(){
     `<span class="badge ${mCls}">${esc(modeloNombre(u.modelo))}</span>
      <span class="badge ${desp?'descargado':'transito'}">${desp?'Despachado':'En bodega'}</span>
      ${u.mac?'<br><span style="font-size:13px">🔖 MAC: <b>'+esc(u.mac)+'</b></span>':''}
-     ${u.fecha_armado?'<br><span class="muted" style="font-size:13px">🛠 Armado: '+fecha(u.fecha_armado)+'</span>':''}
-     ${desp?'<br><span style="font-size:14px">📍 Despachado a <b>'+esc(u.laguna||'')+'</b>'+(u.fecha_despacho?' el '+fecha(u.fecha_despacho):'')+'</span>':''}
+     ${(u.fecha_armado||u.responsable_armado)?'<br><span class="muted" style="font-size:13px">🛠 Armado'+(u.fecha_armado?': '+fecha(u.fecha_armado):'')+(u.responsable_armado?' · por '+esc(u.responsable_armado):'')+'</span>':''}
+     ${desp?'<br><span style="font-size:14px">📍 Despachado a <b>'+esc(u.laguna||'')+'</b>'+(u.fecha_despacho?' el '+fecha(u.fecha_despacho):'')+(u.responsable_despacho?' · por '+esc(u.responsable_despacho):'')+'</span>':''}
      ${u.observacion?'<br><span class="muted" style="font-size:13px">'+esc(u.observacion)+'</span>':''}`;
   // Form de despacho solo si esta en bodega
   document.getElementById('udDespachoForm').style.display = desp ? 'none' : 'block';
@@ -782,7 +793,7 @@ async function despacharUnidad(){
   const nota=document.getElementById('uNotaDesp').value.trim();
   const rec={ estado:'Despachado', laguna,
               fecha_despacho:document.getElementById('uFechaDesp').value||new Date().toISOString().slice(0,10),
-              observacion: nota || u.observacion || null };
+              observacion: nota || u.observacion || null, responsable_despacho: operador()||null };
   const {error}=await sb.from('alim_unidades').update(rec).eq('id',u.id);
   if(error){ toast('Error al despachar'); return; }
   closeModal('mUnidadDet'); toast('Despachado a '+laguna+' ✓'); loadAll();
@@ -847,7 +858,7 @@ async function saveCont(){
   const id=document.getElementById('cId').value;
   let res;
   if(id) res=await sb.from('alim_contenedores').update(rec).eq('id',id).select().single();
-  else   res=await sb.from('alim_contenedores').insert(rec).select().single();
+  else { rec.responsable=operador()||null; res=await sb.from('alim_contenedores').insert(rec).select().single(); }
   if(res.error){ toast(res.error.message.includes('duplicate')?'Ese código ya existe':'Error al guardar'); return; }
   closeModal('mForm'); toast(id?'Contenedor actualizado':'Contenedor creado'); await loadAll();
   if(id) currentCont=contenedores.find(c=>c.id===id);
@@ -866,7 +877,7 @@ function renderDetail(){
   const c=currentCont; if(!c) return;
   document.getElementById('dTitle').textContent='🚢 '+c.codigo;
   const cls=c.estado==='Recibido'?'recibido':c.estado==='Descargado'?'descargado':'transito';
-  document.getElementById('dMeta').innerHTML=`<span class="badge ${cls}">${esc(c.estado)}</span> ${c.fecha_llegada?'&nbsp; 📅 '+fecha(c.fecha_llegada):''}${c.descripcion?'<br><span class="muted" style="font-size:13px">'+esc(c.descripcion)+'</span>':''}`;
+  document.getElementById('dMeta').innerHTML=`<span class="badge ${cls}">${esc(c.estado)}</span> ${c.fecha_llegada?'&nbsp; 📅 '+fecha(c.fecha_llegada):''}${c.responsable?'<br><span class="muted" style="font-size:13px">📝 Recibido por: '+esc(c.responsable)+'</span>':''}${c.descripcion?'<br><span class="muted" style="font-size:13px">'+esc(c.descripcion)+'</span>':''}`;
   renderFotos();
   const lines=piezas.filter(p=>p.contenedor_id===c.id).sort((a,b)=>tipoNombre(a.tipo_pieza_id).localeCompare(tipoNombre(b.tipo_pieza_id)));
   if(lines.length===0){ document.getElementById('dLines').innerHTML='<div class="empty"><div class="big">🔧</div>Aún sin piezas.<br>Agregue arriba.</div>'; return; }
@@ -1033,26 +1044,26 @@ function exportRecepcion(){
   // cada pieza recibida por contenedor, linea por linea
   const contById={}; contenedores.forEach(c=>contById[c.id]=c);
   const filas=piezas.map(p=>{ const c=contById[p.contenedor_id]||{}; return {
-    cod:c.codigo||'', fll:c.fecha_llegada||'', est:c.estado||'',
+    cod:c.codigo||'', fll:c.fecha_llegada||'', est:c.estado||'', resp:c.responsable||'',
     pieza:tipoNombre(p.tipo_pieza_id), cant:p.cantidad, modelo:p.observacion||'' };
   }).sort((a,b)=> (a.cod||'').localeCompare(b.cod||'') || a.pieza.localeCompare(b.pieza));
-  let csv='Contenedor,Fecha llegada,Estado,Pieza,Cantidad,Modelo/Comentario\n';
-  filas.forEach(f=>{ csv+=[csvCell(f.cod),csvCell(f.fll),csvCell(f.est),csvCell(f.pieza),f.cant,csvCell(f.modelo)].join(',')+'\n'; });
+  let csv='Contenedor,Fecha llegada,Estado,Recibido por,Pieza,Cantidad,Modelo/Comentario\n';
+  filas.forEach(f=>{ csv+=[csvCell(f.cod),csvCell(f.fll),csvCell(f.est),csvCell(f.resp),csvCell(f.pieza),f.cant,csvCell(f.modelo)].join(',')+'\n'; });
   download('recepcion_'+hoyISO()+'.csv',csv);
   closeModal('mReportes'); toast('Descargado ✓');
 }
 function exportDespachos(){
-  let csv='Alimentador,MAC,Modelo,Estado,Laguna,Fecha armado,Fecha despacho,Observacion\n';
+  let csv='Alimentador,MAC,Modelo,Estado,Laguna,Fecha armado,Armado por,Fecha despacho,Despachado por,Observacion\n';
   unidades.forEach(u=>{ csv+=[csvCell(u.nombre),csvCell(u.mac||''),csvCell(modeloNombre(u.modelo)),csvCell(u.estado),
-    csvCell(u.laguna||''),csvCell(u.fecha_armado||''),csvCell(u.fecha_despacho||''),csvCell(u.observacion||'')].join(',')+'\n'; });
+    csvCell(u.laguna||''),csvCell(u.fecha_armado||''),csvCell(u.responsable_armado||''),csvCell(u.fecha_despacho||''),csvCell(u.responsable_despacho||''),csvCell(u.observacion||'')].join(',')+'\n'; });
   download('alimentadores_despachos_'+hoyISO()+'.csv',csv);
   closeModal('mReportes'); toast('Descargado ✓');
 }
 function exportContenedores(){
-  let csv='Contenedor,Fecha llegada,Estado,Tipos de pieza,Total piezas,Descripcion\n';
+  let csv='Contenedor,Fecha llegada,Estado,Recibido por,Tipos de pieza,Total piezas,Descripcion\n';
   contenedores.forEach(c=>{ const ls=piezas.filter(p=>p.contenedor_id===c.id);
     const tot=ls.reduce((a,p)=>a+Number(p.cantidad||0),0);
-    csv+=[csvCell(c.codigo),csvCell(c.fecha_llegada||''),csvCell(c.estado),ls.length,tot,csvCell(c.descripcion||'')].join(',')+'\n'; });
+    csv+=[csvCell(c.codigo),csvCell(c.fecha_llegada||''),csvCell(c.estado),csvCell(c.responsable||''),ls.length,tot,csvCell(c.descripcion||'')].join(',')+'\n'; });
   download('contenedores_'+hoyISO()+'.csv',csv);
   closeModal('mReportes'); toast('Descargado ✓');
 }
